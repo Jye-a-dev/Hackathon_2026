@@ -2,7 +2,11 @@
   "name": "contracts",
   "version": "1.0.0",
   "scripts": {
-    "test": "anchor test"
+    "build": "node scripts/runner.js build",
+    "dev": "node scripts/runner.js dev",
+    "test": "node scripts/runner.js test",
+    "build:local": "anchor build",
+    "test:local": "anchor test"
   },
   "devDependencies": {
     "@coral-xyz/anchor": "^0.30.1",

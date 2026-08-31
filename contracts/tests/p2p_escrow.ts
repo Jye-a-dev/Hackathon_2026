@@ -3,6 +3,8 @@ import { Program } from "@coral-xyz/anchor";
 import { P2pEscrow } from "../target/types/p2p_escrow";
 import { PublicKey, SystemProgram, LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { expect } from "chai";
+import * as dotenv from "dotenv";
+dotenv.config();
 
 describe("p2p_escrow integration tests", () => {
   const provider = anchor.AnchorProvider.env();
@@ -12,19 +14,32 @@ describe("p2p_escrow integration tests", () => {
 
   const buyer = anchor.web3.Keypair.generate();
   const seller = anchor.web3.Keypair.generate();
-  const arbiter = anchor.web3.Keypair.generate();
+  
+  // Đọc Arbiter từ env hoặc tạo mới nếu chạy test local
+  const arbiterKeypair = anchor.web3.Keypair.generate();
+  const arbiter = process.env.ARBITER_WALLET_PUBKEY && process.env.ARBITER_WALLET_PUBKEY.length === 44 && !process.env.ARBITER_WALLET_PUBKEY.includes("...")
+    ? new PublicKey(process.env.ARBITER_WALLET_PUBKEY) 
+    : arbiterKeypair.publicKey;
+  const arbiterSigner = (arbiter.equals(arbiterKeypair.publicKey)) ? arbiterKeypair : provider.wallet;
+
+  const testTimeout = new anchor.BN(
+    process.env.NODE_ENV === "test" ? 2 : parseInt(process.env.DEFAULT_TIMEOUT_DURATION || "172800", 10)
+  );
+
   const orderId = new anchor.BN(Date.now());
-  const amount = new anchor.BN(1 * LAMPORTS_PER_SOL);
+  const amount = new anchor.BN(0.5 * LAMPORTS_PER_SOL);
 
   let escrowPda: PublicKey;
   let vaultPda: PublicKey;
 
   before(async () => {
     // Airdrop SOL cho các actors
-    for (const kp of [buyer, seller, arbiter]) {
+    for (const kp of [buyer, seller]) {
       const sig = await provider.connection.requestAirdrop(kp.publicKey, 2 * LAMPORTS_PER_SOL);
       await provider.connection.confirmTransaction(sig);
     }
+    const sigArbiter = await provider.connection.requestAirdrop(arbiter, 2 * LAMPORTS_PER_SOL);
+    await provider.connection.confirmTransaction(sigArbiter);
 
     const orderIdBuffer = orderId.toArrayLike(Buffer, "le", 8);
     [escrowPda] = PublicKey.findProgramAddressSync(
@@ -38,13 +53,13 @@ describe("p2p_escrow integration tests", () => {
     );
   });
 
-  it("1. Khởi tạo Escrow và lock tiền vào Vault", async () => {
+  it("1. Khởi tạo Escrow và lock tiền vào Vault với timeout từ config", async () => {
     await program.methods
-      .initialize(orderId, amount, new anchor.BN(2)) // Đặt timeout test là 2 giây
+      .initialize(orderId, amount, testTimeout)
       .accounts({
         buyer: buyer.publicKey,
         seller: seller.publicKey,
-        arbiter: arbiter.publicKey,
+        arbiter: arbiter,
         escrow: escrowPda,
         vault: vaultPda,
         systemProgram: SystemProgram.programId,
@@ -56,6 +71,7 @@ describe("p2p_escrow integration tests", () => {
     expect(escrowAccount.amount.toNumber()).to.equal(amount.toNumber());
     expect(escrowAccount.buyer.toBase58()).to.equal(buyer.publicKey.toBase58());
     expect(escrowAccount.seller.toBase58()).to.equal(seller.publicKey.toBase58());
+    expect(escrowAccount.arbiter.toBase58()).to.equal(arbiter.toBase58());
     expect(escrowAccount.status).to.deep.equal({ locked: {} });
   });
 
@@ -63,10 +79,10 @@ describe("p2p_escrow integration tests", () => {
     await program.methods
       .markDelivered()
       .accounts({
-        authority: arbiter.publicKey,
+        authority: arbiter,
         escrow: escrowPda,
       })
-      .signers([arbiter])
+      .signers([arbiterSigner as any])
       .rpc();
 
     const escrowAccount = await program.account.escrow.fetch(escrowPda);
@@ -117,7 +133,7 @@ describe("p2p_escrow integration tests", () => {
         .accounts({
           buyer: buyer.publicKey,
           seller: seller.publicKey,
-          arbiter: arbiter.publicKey,
+          arbiter: arbiter,
           escrow: disputeEscrowPda,
           vault: disputeVaultPda,
           systemProgram: SystemProgram.programId,
@@ -156,14 +172,14 @@ describe("p2p_escrow integration tests", () => {
       await program.methods
         .resolveDispute({ refundToBuyer: {} })
         .accounts({
-          arbiter: arbiter.publicKey,
+          arbiter: arbiter,
           buyer: buyer.publicKey,
           seller: seller.publicKey,
           escrow: disputeEscrowPda,
           vault: disputeVaultPda,
           systemProgram: SystemProgram.programId,
         })
-        .signers([arbiter])
+        .signers([arbiterSigner as any])
         .rpc();
 
       const buyerBalanceAfter = await provider.connection.getBalance(buyer.publicKey);

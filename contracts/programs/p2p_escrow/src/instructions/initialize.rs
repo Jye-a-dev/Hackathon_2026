@@ -9,7 +9,10 @@ use crate::state::{Escrow, EscrowStatus};
 #[instruction(order_id: u64)]
 pub struct Initialize<'info> {
     #[account(mut)]
-    pub buyer: Signer<'info>,
+    pub payer: Signer<'info>,
+
+    /// CHECK: Buyer nhận quyền sở hữu đơn hàng (ví cá nhân hoặc ví trừu tượng)
+    pub buyer: UncheckedAccount<'info>,
 
     /// CHECK: Seller chỉ nhận tiền sau khi đơn hoàn tất
     pub seller: UncheckedAccount<'info>,
@@ -19,7 +22,7 @@ pub struct Initialize<'info> {
 
     #[account(
         init,
-        payer = buyer,
+        payer = payer,
         space = 8 + Escrow::INIT_SPACE,
         seeds = [ESCROW_SEED, order_id.to_le_bytes().as_ref()],
         bump
@@ -49,6 +52,7 @@ pub fn handler(
     let clock = Clock::get()?;
 
     escrow.order_id = order_id;
+    escrow.payer = ctx.accounts.payer.key();
     escrow.buyer = ctx.accounts.buyer.key();
     escrow.seller = ctx.accounts.seller.key();
     escrow.arbiter = ctx.accounts.arbiter.key();
@@ -60,11 +64,11 @@ pub fn handler(
     escrow.bump = ctx.bumps.escrow;
     escrow.vault_bump = ctx.bumps.vault;
 
-    // Chuyển SOL từ Buyer vào Vault PDA
+    // Chuyển SOL từ Payer (Relayer hoặc Buyer) vào Vault PDA
     let cpi_context = CpiContext::new(
         ctx.accounts.system_program.to_account_info(),
         Transfer {
-            from: ctx.accounts.buyer.to_account_info(),
+            from: ctx.accounts.payer.to_account_info(),
             to: ctx.accounts.vault.to_account_info(),
         },
     );

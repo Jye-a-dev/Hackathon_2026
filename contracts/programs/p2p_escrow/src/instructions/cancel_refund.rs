@@ -2,21 +2,21 @@ use anchor_lang::prelude::*;
 use anchor_lang::system_program::{transfer, Transfer};
 use crate::constants::{ESCROW_SEED, VAULT_SEED};
 use crate::errors::EscrowError;
-use crate::events::EscrowCompleted;
+use crate::events::EscrowCancelled;
 use crate::state::{Escrow, EscrowStatus};
 
 #[derive(Accounts)]
-pub struct Complete<'info> {
+pub struct CancelRefund<'info> {
     #[account(mut)]
     pub caller: Signer<'info>,
 
-    /// CHECK: Payer nhận lại rent-exempt lamports khi đóng tài khoản Escrow
+    /// CHECK: Nhận lại rent-exempt lamports từ việc đóng Escrow PDA
     #[account(mut, address = escrow.payer)]
     pub payer: UncheckedAccount<'info>,
 
-    /// CHECK: Seller nhận tiền giải ngân
-    #[account(mut, address = escrow.seller)]
-    pub seller: UncheckedAccount<'info>,
+    /// CHECK: Buyer nhận hoàn lại tiền ký quỹ
+    #[account(mut, address = escrow.buyer)]
+    pub buyer: UncheckedAccount<'info>,
 
     #[account(
         mut,
@@ -26,7 +26,7 @@ pub struct Complete<'info> {
     )]
     pub escrow: Account<'info, Escrow>,
 
-    /// CHECK: Vault PDA chuyển tiền đi thông qua System Program CPI signed seeds
+    /// CHECK: Vault PDA chuyển tiền hoàn trả qua System Program CPI
     #[account(
         mut,
         seeds = [VAULT_SEED, escrow.key().as_ref()],
@@ -37,21 +37,25 @@ pub struct Complete<'info> {
     pub system_program: Program<'info, System>,
 }
 
-pub fn handler(ctx: Context<Complete>) -> Result<()> {
+pub fn handler(ctx: Context<CancelRefund>) -> Result<()> {
     let escrow = &mut ctx.accounts.escrow;
     let clock = Clock::get()?;
 
-    require!(escrow.status == EscrowStatus::Delivered, EscrowError::InvalidEscrowStatus);
+    // Chỉ cho phép hủy khi đơn còn ở trạng thái Locked (chưa giao hàng)
+    require!(
+        escrow.status == EscrowStatus::Locked,
+        EscrowError::CancelNotAllowed
+    );
 
-    // Người mua có thể confirm sớm, hoặc bất kỳ ai (Cranker/Seller) gọi hàm khi đã qua 48h
-    let is_buyer = ctx.accounts.caller.key() == escrow.buyer;
-    let is_timeout_passed = clock.unix_timestamp >= (escrow.delivered_at + escrow.timeout_duration);
+    // Người gọi phải là Buyer hoặc Arbiter/Admin
+    let caller_key = ctx.accounts.caller.key();
+    require!(
+        caller_key == escrow.buyer || caller_key == escrow.arbiter,
+        EscrowError::Unauthorized
+    );
 
-    require!(is_buyer || is_timeout_passed, EscrowError::TimeoutNotReached);
+    escrow.status = EscrowStatus::Refunded;
 
-    escrow.status = EscrowStatus::Completed;
-
-    // Rút lamports từ Vault PDA chuyển sang Seller an toàn qua System Program CPI có signer seeds
     let escrow_key = escrow.key();
     let seeds = &[
         VAULT_SEED,
@@ -60,24 +64,26 @@ pub fn handler(ctx: Context<Complete>) -> Result<()> {
     ];
     let signer = &[&seeds[..]];
 
+    // Hoàn trả toàn bộ lamports ký quỹ từ Vault về ví Buyer
     transfer(
         CpiContext::new_with_signer(
             ctx.accounts.system_program.to_account_info(),
             Transfer {
                 from: ctx.accounts.vault.to_account_info(),
-                to: ctx.accounts.seller.to_account_info(),
+                to: ctx.accounts.buyer.to_account_info(),
             },
             signer,
         ),
         escrow.amount,
     )?;
 
-    emit!(EscrowCompleted {
+    emit!(EscrowCancelled {
         order_id: escrow.order_id,
-        seller: escrow.seller,
+        buyer: escrow.buyer,
         amount: escrow.amount,
         timestamp: clock.unix_timestamp,
     });
 
     Ok(())
 }
+

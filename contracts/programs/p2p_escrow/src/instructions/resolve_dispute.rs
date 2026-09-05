@@ -16,6 +16,10 @@ pub struct ResolveDispute<'info> {
     #[account(mut, address = escrow.arbiter)]
     pub arbiter: Signer<'info>,
 
+    /// CHECK: Payer nhận lại rent lamports khi đóng Escrow
+    #[account(mut, address = escrow.payer)]
+    pub payer: UncheckedAccount<'info>,
+
     /// CHECK: Buyer nhận hoàn tiền
     #[account(mut, address = escrow.buyer)]
     pub buyer: UncheckedAccount<'info>,
@@ -27,7 +31,8 @@ pub struct ResolveDispute<'info> {
     #[account(
         mut,
         seeds = [ESCROW_SEED, escrow.order_id.to_le_bytes().as_ref()],
-        bump = escrow.bump
+        bump = escrow.bump,
+        close = payer
     )]
     pub escrow: Account<'info, Escrow>,
 

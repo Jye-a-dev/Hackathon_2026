@@ -73,4 +73,24 @@ export class OrdersController {
   completeOrder(@Param('id') id: string) {
     return this.escrowService.completeOrder(id);
   }
+
+  /**
+   * POST /orders/:id/cancel
+   * Buyer or Admin cancels order while LOCKED and triggers refund
+   */
+  @Post(':id/cancel')
+  @HttpCode(HttpStatus.OK)
+  cancelOrder(@Param('id') id: string, @Body() dto?: any) {
+    return this.escrowService.cancelOrder(id, dto);
+  }
+
+  /**
+   * POST /orders/:id/dispute/evidence
+   * Upload and attach evidence for a dispute
+   */
+  @Post(':id/dispute/evidence')
+  @HttpCode(HttpStatus.OK)
+  submitEvidence(@Param('id') id: string, @Body() dto: any) {
+    return this.escrowService.submitEvidence(id, dto);
+  }
 }

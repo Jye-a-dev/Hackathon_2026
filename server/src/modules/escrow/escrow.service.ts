@@ -14,6 +14,8 @@ import { MarkDeliveredDto } from './dto/mark-delivered.dto';
 import { RaiseDisputeDto } from './dto/raise-dispute.dto';
 import { ResolveDisputeDto } from './dto/resolve-dispute.dto';
 import { QueryEscrowDto } from './dto/query-escrow.dto';
+import { DisputeEvidenceDto } from './dto/dispute-evidence.dto';
+import { CancelOrderDto } from './dto/cancel-order.dto';
 import { EscrowEntity, EscrowDbStatus } from './entities/escrow.entity';
 import { DisputeDecision, PdaResult } from '../solana/solana.types';
 
@@ -145,6 +147,19 @@ export class EscrowService implements OnModuleInit {
               status: statusStr,
               recipient,
               resolvedAt,
+            });
+            break;
+          }
+
+          case 'escrowCancelled': {
+            const refundedAt = data.timestamp
+              ? new Date(data.timestamp.toNumber() * 1000)
+              : new Date();
+            await this.escrowRepo.markRefunded(orderId, refundedAt, sig);
+            this.escrowGateway.broadcastOrderStatus(orderId, 'REFUNDED', {
+              status: 'REFUNDED',
+              refundedAt,
+              reason: 'Order cancelled by buyer/arbiter',
             });
             break;
           }
@@ -489,5 +504,74 @@ export class EscrowService implements OnModuleInit {
    */
   async listOrders(query: QueryEscrowDto) {
     return this.escrowRepo.list(query);
+  }
+
+  /**
+   * Submit dispute evidence (unboxing video, damaged goods photos, delivery notes)
+   */
+  async submitEvidence(orderId: string, dto: DisputeEvidenceDto) {
+    const order = await this.escrowRepo.findByOrderId(orderId);
+    if (!order) {
+      throw new NotFoundException(`Order with id ${orderId} not found`);
+    }
+
+    const dispute = await this.escrowRepo.attachEvidence(
+      orderId,
+      dto.evidenceUrls,
+      dto.reason,
+    );
+
+    this.escrowGateway.broadcastOrderStatus(orderId, 'DISPUTED', {
+      action: 'EVIDENCE_UPLOADED',
+      evidenceUrls: dto.evidenceUrls,
+    });
+
+    return dispute;
+  }
+
+  /**
+   * Cancel an order early when in LOCKED state and refund lamports to buyer
+   */
+  async cancelOrder(orderId: string, dto?: CancelOrderDto) {
+    const order = await this.escrowRepo.findByOrderId(orderId);
+    if (!order) {
+      throw new NotFoundException(`Order with id ${orderId} not found`);
+    }
+
+    if (order.status !== 'LOCKED') {
+      throw new BadRequestException(
+        `Order is in status ${order.status}. Only LOCKED orders can be cancelled and refunded.`,
+      );
+    }
+
+    // Call on-chain cancelRefund
+    const onChainResult = await this.solanaService.cancelRefund(orderId);
+    const refundedAt = new Date();
+
+    const updated = await this.escrowRepo.markRefunded(
+      orderId,
+      refundedAt,
+      onChainResult.signature,
+    );
+
+    this.escrowGateway.broadcastOrderStatus(orderId, 'REFUNDED', {
+      orderId,
+      txSignature: onChainResult.signature,
+      refundedAt,
+      reason: dto?.reason || 'Cancelled by buyer/admin',
+    });
+
+    return {
+      success: true,
+      order: updated,
+      txSignature: onChainResult.signature,
+    };
+  }
+
+  /**
+   * List disputes for Admin Dashboard
+   */
+  async listDisputes(status?: string) {
+    return this.escrowRepo.listDisputes(status);
   }
 }

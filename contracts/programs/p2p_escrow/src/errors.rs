@@ -14,4 +14,8 @@ pub enum EscrowError {
     EscrowInDispute,
     #[msg("Số tiền ký quỹ không hợp lệ.")]
     InvalidAmount,
+    #[msg("Đơn hàng đã được giao hoặc không ở trạng thái Locked để hủy.")]
+    CancelNotAllowed,
+    #[msg("Tài khoản Payer nhận hoàn rent không khớp với tài khoản khởi tạo.")]
+    UnauthorizedPayer,
 }

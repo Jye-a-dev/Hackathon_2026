@@ -38,4 +38,8 @@ pub mod p2p_escrow {
     pub fn resolve_dispute(ctx: Context<ResolveDispute>, decision: DisputeDecision) -> Result<()> {
         instructions::resolve_dispute::handler(ctx, decision)
     }
+
+    pub fn cancel_refund(ctx: Context<CancelRefund>) -> Result<()> {
+        instructions::cancel_refund::handler(ctx)
+    }
 }

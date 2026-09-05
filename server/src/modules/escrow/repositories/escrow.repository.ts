@@ -293,6 +293,77 @@ export class EscrowRepository {
     return res.rows[0];
   }
 
+  async markRefunded(
+    orderId: string,
+    refundedAt: Date = new Date(),
+    txSignature?: string,
+  ): Promise<EscrowEntity | null> {
+    const query = `
+      UPDATE orders
+      SET status = 'REFUNDED',
+          resolved_at = $2,
+          tx_signature = COALESCE($3, tx_signature),
+          updated_at = NOW()
+      WHERE id = $1
+      RETURNING *, id AS order_id, amount_lamports AS amount;
+    `;
+    const res = await this.db.query<EscrowEntity>(query, [
+      orderId,
+      refundedAt,
+      txSignature || null,
+    ]);
+    return res.rows[0] || null;
+  }
+
+  async attachEvidence(
+    orderId: string,
+    evidenceUrls: string[],
+    reason?: string,
+  ): Promise<DisputeEntity> {
+    const checkRes = await this.db.query<DisputeEntity>(
+      'SELECT * FROM disputes WHERE order_id = $1 LIMIT 1;',
+      [orderId],
+    );
+
+    if (checkRes.rows[0]) {
+      const query = `
+        UPDATE disputes
+        SET evidence_urls = array_cat(COALESCE(evidence_urls, ARRAY[]::TEXT[]), $2::TEXT[]),
+            reason = COALESCE($3, reason)
+        WHERE order_id = $1
+        RETURNING *;
+      `;
+      const res = await this.db.query<DisputeEntity>(query, [
+        orderId,
+        evidenceUrls,
+        reason || null,
+      ]);
+      return res.rows[0];
+    } else {
+      return this.createDispute({
+        orderId,
+        evidenceUrls,
+        reason,
+      });
+    }
+  }
+
+  async listDisputes(status?: string): Promise<DisputeEntity[]> {
+    let query = `
+      SELECT d.*, o.amount_lamports, o.buyer_wallet, o.seller_wallet, o.status as order_status
+      FROM disputes d
+      JOIN orders o ON d.order_id = o.id
+    `;
+    const params: any[] = [];
+    if (status) {
+      query += ` WHERE d.resolution_status = $1`;
+      params.push(status);
+    }
+    query += ` ORDER BY d.created_at DESC;`;
+    const res = await this.db.query<DisputeEntity>(query, params);
+    return res.rows;
+  }
+
   async resolveDisputeRecord(
     orderId: string,
     decision: string,

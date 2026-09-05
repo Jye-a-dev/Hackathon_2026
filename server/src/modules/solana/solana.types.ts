@@ -12,6 +12,7 @@ export type DisputeDecision = 'ReleaseToSeller' | 'RefundToBuyer';
 
 export interface EscrowAccountData {
   orderId: anchor.BN;
+  payer: PublicKey;
   buyer: PublicKey;
   seller: PublicKey;
   arbiter: PublicKey;
@@ -56,6 +57,13 @@ export interface DisputeResolvedEvent {
   recipient: PublicKey;
   amount: anchor.BN;
   status: EscrowStatusOnChain;
+}
+
+export interface EscrowCancelledEvent {
+  orderId: anchor.BN;
+  buyer: PublicKey;
+  amount: anchor.BN;
+  timestamp: anchor.BN;
 }
 
 export interface PdaResult {

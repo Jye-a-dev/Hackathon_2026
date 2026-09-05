@@ -254,6 +254,7 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
       .resolveDispute(decisionArg)
       .accounts({
         arbiter: this.arbiterKeypair.publicKey,
+        payer: account.payer,
         buyer: account.buyer,
         seller: account.seller,
         escrow: new PublicKey(escrowPda),
@@ -293,6 +294,7 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
       .complete()
       .accounts({
         caller: this.arbiterKeypair.publicKey,
+        payer: account.payer,
         seller: account.seller,
         escrow: new PublicKey(escrowPda),
         vault: new PublicKey(vaultPda),
@@ -302,6 +304,89 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
       .rpc();
 
     this.logger.log(`complete transaction confirmed: ${txSig}`);
+    return txSig;
+  }
+
+  /**
+   * Cancel order and refund to buyer when status is Locked (seller hasn't delivered)
+   */
+  public async cancelRefund(
+    orderId: string | number | bigint | BN,
+  ): Promise<{ signature: string; status: string; buyer: string }> {
+    const { escrowPda, vaultPda } = this.calculatePdas(orderId);
+    const account = await this.fetchEscrowAccount(orderId);
+
+    if (!account) {
+      throw new Error(
+        `Escrow on-chain account for orderId ${orderId} does not exist`,
+      );
+    }
+
+    const currentStatus = this.parseStatus(account.status);
+    if (currentStatus !== 'LOCKED') {
+      throw new Error(
+        `Escrow is currently in ${currentStatus} state, must be LOCKED to cancel and refund.`,
+      );
+    }
+
+    this.logger.log(`Executing cancelRefund on-chain for orderId: ${orderId}`);
+
+    const txSig = await (this.program.methods as any)
+      .cancelRefund()
+      .accounts({
+        caller: this.arbiterKeypair.publicKey,
+        payer: account.payer,
+        buyer: account.buyer,
+        escrow: new PublicKey(escrowPda),
+        vault: new PublicKey(vaultPda),
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([this.arbiterKeypair])
+      .rpc();
+
+    this.logger.log(`cancelRefund transaction confirmed: ${txSig}`);
+
+    return {
+      signature: txSig,
+      status: 'REFUNDED',
+      buyer: account.buyer.toBase58(),
+    };
+  }
+
+  /**
+   * Relayer initializes escrow on-chain on behalf of buyer
+   */
+  public async initializeEscrow(
+    orderId: string | number | bigint | BN,
+    amountLamports: string | number | bigint | BN,
+    buyerWallet: string,
+    sellerWallet: string,
+    timeoutDuration?: number,
+  ): Promise<string> {
+    const { escrowPda, vaultPda } = this.calculatePdas(orderId);
+    const bnOrderId = this.toBN(orderId);
+    const bnAmount = this.toBN(amountLamports);
+    const bnTimeout = timeoutDuration ? new BN(timeoutDuration) : null;
+
+    this.logger.log(
+      `Relayer initializing escrow on-chain for orderId: ${orderId}, amount: ${bnAmount.toString()} lamports`,
+    );
+
+    const txSig = await (this.program.methods as any)
+      .initialize(bnOrderId, bnAmount, bnTimeout)
+      .accounts({
+        payer: this.arbiterKeypair.publicKey,
+        buyer: new PublicKey(buyerWallet),
+        seller: new PublicKey(sellerWallet),
+        arbiter: this.arbiterKeypair.publicKey,
+        escrow: new PublicKey(escrowPda),
+        vault: new PublicKey(vaultPda),
+        systemProgram: SystemProgram.programId,
+      })
+      .signers([this.arbiterKeypair])
+      .rpc();
+
+    this.logger.log(`initializeEscrow confirmed on-chain: ${txSig}`);
     return txSig;
   }
 
@@ -322,6 +407,7 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
       'escrowCompleted',
       'disputeRaised',
       'disputeResolved',
+      'escrowCancelled',
     ];
 
     for (const eventName of eventNames) {

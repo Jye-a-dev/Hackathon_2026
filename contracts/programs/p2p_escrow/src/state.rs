@@ -13,7 +13,8 @@ pub enum EscrowStatus {
 #[derive(InitSpace)]
 pub struct Escrow {
     pub order_id: u64,          // 8 bytes (ID đồng bộ từ Backend PostgreSQL)
-    pub buyer: Pubkey,          // 32 bytes
+    pub payer: Pubkey,          // 32 bytes (Ví trả phí thuê rent PDA: Relayer hoặc Buyer)
+    pub buyer: Pubkey,          // 32 bytes (Ví người mua)
     pub seller: Pubkey,         // 32 bytes
     pub arbiter: Pubkey,        // 32 bytes (Admin/Arbiter xử lý tranh chấp)
     pub amount: u64,            // 8 bytes (Số lamports ký quỹ)

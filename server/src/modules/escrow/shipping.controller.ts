@@ -75,6 +75,21 @@ export class ShippingController {
       );
     }
 
+    // Idempotency check: check if order is already DELIVERED or beyond
+    const existingOrder = await this.escrowService.getOrder(targetOrderId.toString());
+    const currentStatus = existingOrder?.db?.status;
+    if (currentStatus && currentStatus !== 'LOCKED') {
+      this.logger.log(
+        `Order ${targetOrderId} is already in status [${currentStatus}]. Skipping redundant markDelivered execution.`,
+      );
+      return {
+        success: true,
+        orderId: targetOrderId.toString(),
+        status: currentStatus,
+        message: 'Order already processed (idempotent duplicate).',
+      };
+    }
+
     this.logger.log(
       `Invoking escrowService.markDelivered for orderId: ${targetOrderId}`,
     );

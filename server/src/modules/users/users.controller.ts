@@ -35,4 +35,3 @@ export class UsersController {
     return this.usersService.updateProfile(wallet, body);
   }
 }
-

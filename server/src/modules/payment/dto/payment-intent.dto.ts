@@ -17,4 +17,3 @@ export class CreatePaymentIntentDto {
   @IsNumber()
   maxSlippageBps?: number;
 }
-

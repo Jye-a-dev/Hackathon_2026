@@ -76,4 +76,3 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
     client.to(room).emit('user_typing', data);
   }
 }
-

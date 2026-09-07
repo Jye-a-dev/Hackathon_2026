@@ -49,4 +49,3 @@ export class QueryListingDto {
   @IsNumber()
   offset?: number;
 }
-

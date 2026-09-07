@@ -127,7 +127,9 @@ export class PaymentService {
       payload.reference;
 
     if (!rawTxId) {
-      throw new BadRequestException('Webhook payload missing transaction identifier.');
+      throw new BadRequestException(
+        'Webhook payload missing transaction identifier.',
+      );
     }
 
     // 1. Idempotency Check: prevent duplicate webhook ingestion
@@ -142,7 +144,9 @@ export class PaymentService {
     );
 
     if (checkProcessed.rows.length > 0) {
-      this.logger.log(`Webhook ${idempotencyKey} already processed. Returning 200 OK.`);
+      this.logger.log(
+        `Webhook ${idempotencyKey} already processed. Returning 200 OK.`,
+      );
       return {
         success: true,
         message: 'Webhook duplicate already processed (Idempotent OK).',
@@ -150,12 +154,19 @@ export class PaymentService {
     }
 
     // 2. Parse memo / order context
-    const memo = (payload.description || payload.content || payload.orderInfo || '').toString();
+    const memo = (
+      payload.description ||
+      payload.content ||
+      payload.orderInfo ||
+      ''
+    ).toString();
     const memoMatch = memo.match(/ORDER_(\d+)/i);
     const orderId = payload.orderId || (memoMatch ? memoMatch[1] : null);
 
     if (!orderId) {
-      throw new BadRequestException('Cannot correlate payment webhook with orderId.');
+      throw new BadRequestException(
+        'Cannot correlate payment webhook with orderId.',
+      );
     }
 
     // 3. Atomically lock and process inside a transaction
@@ -170,7 +181,9 @@ export class PaymentService {
 
       const intent: PaymentIntent = intentRes.rows[0];
       if (!intent) {
-        throw new BadRequestException(`No active pending payment intent for order #${orderId}`);
+        throw new BadRequestException(
+          `No active pending payment intent for order #${orderId}`,
+        );
       }
 
       // Check Expiration: max 15 minutes
@@ -179,13 +192,16 @@ export class PaymentService {
           `UPDATE payment_intents SET status = 'EXPIRED', updated_at = NOW() WHERE id = $1;`,
           [intent.id],
         );
-        throw new BadRequestException('Payment intent has expired (15m window passed). Refund VND required.');
+        throw new BadRequestException(
+          'Payment intent has expired (15m window passed). Refund VND required.',
+        );
       }
 
       // Check Slippage: verify current price hasn't deviated beyond allowed threshold
       const currentRate = await this.getCurrentSolVndRate();
       const lockedRate = parseFloat(intent.locked_sol_price);
-      const deviationBps = Math.abs((currentRate - lockedRate) / lockedRate) * 10000;
+      const deviationBps =
+        Math.abs((currentRate - lockedRate) / lockedRate) * 10000;
 
       if (deviationBps > intent.max_slippage_bps) {
         await client.query(
@@ -247,13 +263,16 @@ export class PaymentService {
 
       return {
         success: true,
-        message: 'Payment received. Relayer successfully locked escrow on-chain.',
+        message:
+          'Payment received. Relayer successfully locked escrow on-chain.',
         txSignature: txSig,
       };
     });
   }
 
-  public async getPaymentIntent(intentId: string): Promise<PaymentIntent | null> {
+  public async getPaymentIntent(
+    intentId: string,
+  ): Promise<PaymentIntent | null> {
     const res = await this.db.query<PaymentIntent>(
       'SELECT * FROM payment_intents WHERE id = $1 LIMIT 1;',
       [intentId],
@@ -261,4 +280,3 @@ export class PaymentService {
     return res.rows[0] || null;
   }
 }
-

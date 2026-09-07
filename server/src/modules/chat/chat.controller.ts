@@ -52,4 +52,3 @@ export class ChatController {
     return this.chatService.saveMessage(id, senderWallet, content);
   }
 }
-

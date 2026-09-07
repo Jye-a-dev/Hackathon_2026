@@ -52,4 +52,3 @@ export class CreateListingDto {
   @IsNumber()
   longitude?: number;
 }
-

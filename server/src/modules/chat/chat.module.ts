@@ -11,4 +11,3 @@ import { DatabaseModule } from '../../database/database.module';
   exports: [ChatGateway, ChatService],
 })
 export class ChatModule {}
-

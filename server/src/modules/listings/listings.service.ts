@@ -173,4 +173,3 @@ export class ListingsService {
     return res.rows[0];
   }
 }
-

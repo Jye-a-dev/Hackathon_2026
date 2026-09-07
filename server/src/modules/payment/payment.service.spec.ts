@@ -50,7 +50,9 @@ describe('PaymentService', () => {
 
     it('should create a payment intent with 15m expiration', async () => {
       dbMock.query
-        .mockResolvedValueOnce({ rows: [{ id: '100', buyer_wallet: 'buyer_pubkey' }] })
+        .mockResolvedValueOnce({
+          rows: [{ id: '100', buyer_wallet: 'buyer_pubkey' }],
+        })
         .mockResolvedValueOnce({
           rows: [
             {
@@ -79,7 +81,9 @@ describe('PaymentService', () => {
   describe('processPaymentWebhook - Idempotency & Guards', () => {
     it('should return 200 OK immediately if webhook was already processed', async () => {
       // Mock finding duplicate in processed_webhooks
-      dbMock.query.mockResolvedValueOnce({ rows: [{ id: 'processed_key_123' }] });
+      dbMock.query.mockResolvedValueOnce({
+        rows: [{ id: 'processed_key_123' }],
+      });
 
       const result = await service.processPaymentWebhook('VIETQR', {
         transactionId: 'TX_DUPLICATE_001',

@@ -76,7 +76,9 @@ export class ShippingController {
     }
 
     // Idempotency check: check if order is already DELIVERED or beyond
-    const existingOrder = await this.escrowService.getOrder(targetOrderId.toString());
+    const existingOrder = await this.escrowService.getOrder(
+      targetOrderId.toString(),
+    );
     const currentStatus = existingOrder?.db?.status;
     if (currentStatus && currentStatus !== 'LOCKED') {
       this.logger.log(

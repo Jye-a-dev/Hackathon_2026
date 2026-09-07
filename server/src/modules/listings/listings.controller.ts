@@ -38,4 +38,3 @@ export class ListingsController {
     return this.listingsService.updateStatus(id, status);
   }
 }
-

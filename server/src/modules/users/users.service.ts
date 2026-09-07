@@ -107,9 +107,10 @@ export class UsersService {
     ]);
 
     if (!res.rows[0]) {
-      throw new NotFoundException(`User with wallet ${walletAddress} not found`);
+      throw new NotFoundException(
+        `User with wallet ${walletAddress} not found`,
+      );
     }
     return res.rows[0];
   }
 }
-

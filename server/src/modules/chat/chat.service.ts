@@ -63,7 +63,9 @@ export class ChatService {
   /**
    * List all conversations for a user's wallet
    */
-  async listUserConversations(walletAddress: string): Promise<ConversationEntity[]> {
+  async listUserConversations(
+    walletAddress: string,
+  ): Promise<ConversationEntity[]> {
     const query = `
       SELECT c.*, 
         (SELECT content FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_message,
@@ -133,4 +135,3 @@ export class ChatService {
     return res.rows;
   }
 }
-

@@ -12,4 +12,3 @@ import { EscrowModule } from '../escrow/escrow.module';
   exports: [PaymentService],
 })
 export class PaymentModule {}
-

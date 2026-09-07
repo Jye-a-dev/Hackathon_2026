@@ -8,7 +8,10 @@ export class AuthService {
   private readonly logger = new Logger(AuthService.name);
 
   // In-memory OTP cache: phone -> { otp, expiresAt }
-  private readonly otpStore = new Map<string, { otp: string; expiresAt: number }>();
+  private readonly otpStore = new Map<
+    string,
+    { otp: string; expiresAt: number }
+  >();
 
   constructor(private readonly usersService: UsersService) {}
 
@@ -57,7 +60,9 @@ export class AuthService {
   /**
    * Request 6-digit OTP for phone login
    */
-  async requestPhoneOtp(phone: string): Promise<{ success: boolean; message: string; testOtp?: string }> {
+  async requestPhoneOtp(
+    phone: string,
+  ): Promise<{ success: boolean; message: string; testOtp?: string }> {
     if (!phone) {
       throw new BadRequestException('Phone number is required');
     }
@@ -126,7 +131,9 @@ export class AuthService {
   /**
    * Direct Web3 Wallet Authentication
    */
-  async connectWallet(walletAddress: string): Promise<{ token: string; user: UserProfile }> {
+  async connectWallet(
+    walletAddress: string,
+  ): Promise<{ token: string; user: UserProfile }> {
     if (!walletAddress) {
       throw new BadRequestException('Wallet address is required');
     }
@@ -144,4 +151,3 @@ export class AuthService {
     return { token, user };
   }
 }
-

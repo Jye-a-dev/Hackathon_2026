@@ -1,27 +1,34 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
-
-import PublicSetup from "@/components/layouts/(public)/PublicSetup";
-
+import Providers from "@/app/providers";
 import "../globals.css";
 
 export const metadata: Metadata = {
-  title: "Template React",
-  description: "Giao diện template React đơn giản.",
+  title: "Chợ Ký Quỹ - Mua Bán P2P An Toàn Bảo Vệ 48h",
+  description: "Nền tảng mua bán đồ cũ an toàn với cơ chế Ký quỹ bảo vệ 48h, thanh toán VietQR tiện lợi 100% VNĐ.",
 };
 
-type PublicLayoutProps = {
+interface PublicLayoutProps {
   children: ReactNode;
-};
+}
 
 export default function PublicLayout({ children }: PublicLayoutProps) {
   return (
     <html lang="vi">
-      <body className="min-h-screen bg-[#f6f4ef] text-neutral-900">
-        <div className="mx-auto flex min-h-screen w-full max-w-350 flex-col border-x border-neutral-200 bg-white">
-          <PublicSetup>{children}</PublicSetup>
-        </div>
+      <body className="min-h-screen bg-slate-100 text-slate-900 antialiased selection:bg-emerald-500 selection:text-white">
+        <Providers>
+          <div className="relative mx-auto flex min-h-screen w-full max-w-lg flex-col bg-white shadow-xl shadow-slate-200/50">
+            {children}
+          </div>
+        </Providers>
       </body>
     </html>
+    <div className="min-h-screen bg-slate-100 text-slate-900">
+      <Providers>
+        <div className="relative mx-auto flex min-h-screen w-full max-w-lg flex-col bg-white shadow-xl shadow-slate-200/50">
+          {children}
+        </div>
+      </Providers>
+    </div>
   );
 }

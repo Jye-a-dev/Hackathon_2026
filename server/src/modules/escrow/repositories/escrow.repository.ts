@@ -40,8 +40,9 @@ export class EscrowRepository {
         `INSERT INTO users (wallet_address, role) VALUES ($1, 'SELLER') ON CONFLICT (wallet_address) DO NOTHING;`,
         [data.sellerWallet],
       );
-    } catch (err: any) {
-      this.logger.warn(`Failed to auto-upsert users: ${err.message}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.logger.warn(`Failed to auto-upsert users: ${msg}`);
     }
 
     // 2. Insert or update in orders table

@@ -23,6 +23,10 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
   private connection: Connection;
   private arbiterKeypair: Keypair;
   private program: Program;
+  private programId: PublicKey;
+  private readonly solanaDisabled =
+    process.env.DISABLE_SOLANA === 'true' ||
+    process.env.DISABLE_SOLANA_INIT === 'true';
   private listenerIds: number[] = [];
 
   onModuleInit() {
@@ -65,6 +69,15 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
     });
 
     const programId = new PublicKey(programIdStr);
+    this.programId = programId;
+
+    if (this.solanaDisabled) {
+      this.logger.warn(
+        'Solana integration is disabled. The server will run without calling the escrow contract.',
+      );
+      return;
+    }
+
     this.program = new Program(P2P_ESCROW_IDL, provider);
 
     this.logger.log(
@@ -111,6 +124,10 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
     return this.program;
   }
 
+  public isSolanaDisabled(): boolean {
+    return this.solanaDisabled;
+  }
+
   public getArbiterPublicKey(): PublicKey {
     return this.arbiterKeypair.publicKey;
   }
@@ -125,7 +142,7 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
     const orderIdBuffer = bnOrderId.toArrayLike(Buffer, 'le', 8);
     return PublicKey.findProgramAddressSync(
       [ESCROW_SEED, orderIdBuffer],
-      this.program.programId,
+      this.programId,
     );
   }
 
@@ -162,6 +179,8 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
   public async fetchEscrowAccount(
     orderId: string | number | bigint | BN,
   ): Promise<EscrowAccountData | null> {
+    if (this.solanaDisabled) return null;
+
     const { escrowPda } = this.calculatePdas(orderId);
     try {
       const accountPubkey = new PublicKey(escrowPda);
@@ -195,6 +214,8 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
   public async markDelivered(
     orderId: string | number | bigint | BN,
   ): Promise<string> {
+    this.ensureSolanaEnabled();
+
     const { escrowPda } = this.calculatePdas(orderId);
     this.logger.log(
       `Executing markDelivered for orderId: ${orderId}, Escrow PDA: ${escrowPda}`,
@@ -220,6 +241,8 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
     orderId: string | number | bigint | BN,
     decision: DisputeDecision,
   ): Promise<{ signature: string; status: string; recipient: string }> {
+    this.ensureSolanaEnabled();
+
     const { escrowPda, vaultPda } = this.calculatePdas(orderId);
     const account = await this.fetchEscrowAccount(orderId);
 
@@ -279,6 +302,8 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
   public async completeEscrow(
     orderId: string | number | bigint | BN,
   ): Promise<string> {
+    this.ensureSolanaEnabled();
+
     const { escrowPda, vaultPda } = this.calculatePdas(orderId);
     const account = await this.fetchEscrowAccount(orderId);
 
@@ -313,6 +338,8 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
   public async cancelRefund(
     orderId: string | number | bigint | BN,
   ): Promise<{ signature: string; status: string; buyer: string }> {
+    this.ensureSolanaEnabled();
+
     const { escrowPda, vaultPda } = this.calculatePdas(orderId);
     const account = await this.fetchEscrowAccount(orderId);
 
@@ -363,6 +390,14 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
     sellerWallet: string,
     timeoutDuration?: number,
   ): Promise<string> {
+    if (this.solanaDisabled) {
+      const mockSignature = `solana-disabled-${this.toBN(orderId).toString()}`;
+      this.logger.warn(
+        `Skipping on-chain escrow initialization for orderId ${orderId}; returning ${mockSignature}`,
+      );
+      return mockSignature;
+    }
+
     const { escrowPda, vaultPda } = this.calculatePdas(orderId);
     const bnOrderId = this.toBN(orderId);
     const bnAmount = this.toBN(amountLamports);
@@ -401,6 +436,13 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
       signature?: string,
     ) => Promise<void> | void,
   ) {
+    if (this.solanaDisabled) {
+      this.logger.warn(
+        'Skipping Anchor event subscriptions because Solana is disabled.',
+      );
+      return;
+    }
+
     const eventNames = [
       'escrowInitialized',
       'deliveredMarked',
@@ -424,8 +466,21 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
               this.logger.error(
                 `Error processing event ${eventName}: ${err.message}`,
                 err.stack,
+          (event: any, slot: number, sig: string) => {
+            void (async () => {
+              this.logger.log(
+                `[On-Chain Event] ${eventName} caught at slot ${slot}`,
               );
             }
+              try {
+                await handler(eventName, event, slot, sig);
+              } catch (err: any) {
+                this.logger.error(
+                  `Error processing event ${eventName}: ${err.message}`,
+                  err.stack,
+                );
+              }
+            })();
           },
         );
 
@@ -445,11 +500,20 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
     for (const id of this.listenerIds) {
       try {
         this.program.removeEventListener(id);
+        void this.program.removeEventListener(id);
       } catch (err: any) {
         this.logger.warn(`Error removing event listener ${id}: ${err.message}`);
       }
     }
     this.listenerIds = [];
+  }
+
+  private ensureSolanaEnabled() {
+    if (this.solanaDisabled) {
+      throw new Error(
+        'Solana integration is disabled. Enable DISABLE_SOLANA=false before using on-chain escrow actions.',
+      );
+    }
   }
 
   private toBN(val: string | number | bigint | BN): BN {

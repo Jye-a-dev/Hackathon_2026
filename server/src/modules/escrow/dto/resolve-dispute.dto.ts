@@ -4,6 +4,7 @@ export class ResolveDisputeDto {
   @IsNotEmpty()
   @IsIn(['ReleaseToSeller', 'RefundToBuyer'])
   decision: 'ReleaseToSeller' | 'RefundToBuyer';
+  decision!: 'ReleaseToSeller' | 'RefundToBuyer';
 
   @IsOptional()
   @IsString()

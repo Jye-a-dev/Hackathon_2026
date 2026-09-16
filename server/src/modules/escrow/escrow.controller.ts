@@ -33,6 +33,7 @@ export class EscrowController {
         process.env.SOLANA_PROGRAM_ID ||
         'Eh9UPtnvbD3SX7NkNMk9BUKX6marhVMHWhdQ8Gus557a',
       arbiterPublicKey: this.solanaService.getArbiterPublicKey().toBase58(),
+      solanaDisabled: this.solanaService.isSolanaDisabled(),
       rpcUrl: process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com',
       wsUrl: process.env.SOLANA_WS_URL || 'wss://api.devnet.solana.com',
       defaultTimeoutDuration: parseInt(

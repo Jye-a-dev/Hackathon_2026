@@ -25,7 +25,8 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
   private program: Program;
   private programId: PublicKey;
   private readonly solanaDisabled =
-    process.env.DISABLE_SOLANA === 'true' || process.env.DISABLE_SOLANA_INIT === 'true';
+    process.env.DISABLE_SOLANA === 'true' ||
+    process.env.DISABLE_SOLANA_INIT === 'true';
   private listenerIds: number[] = [];
 
   onModuleInit() {
@@ -436,7 +437,9 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
     ) => Promise<void> | void,
   ) {
     if (this.solanaDisabled) {
-      this.logger.warn('Skipping Anchor event subscriptions because Solana is disabled.');
+      this.logger.warn(
+        'Skipping Anchor event subscriptions because Solana is disabled.',
+      );
       return;
     }
 
@@ -463,8 +466,21 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
               this.logger.error(
                 `Error processing event ${eventName}: ${err.message}`,
                 err.stack,
+          (event: any, slot: number, sig: string) => {
+            void (async () => {
+              this.logger.log(
+                `[On-Chain Event] ${eventName} caught at slot ${slot}`,
               );
             }
+              try {
+                await handler(eventName, event, slot, sig);
+              } catch (err: any) {
+                this.logger.error(
+                  `Error processing event ${eventName}: ${err.message}`,
+                  err.stack,
+                );
+              }
+            })();
           },
         );
 
@@ -484,6 +500,7 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
     for (const id of this.listenerIds) {
       try {
         this.program.removeEventListener(id);
+        void this.program.removeEventListener(id);
       } catch (err: any) {
         this.logger.warn(`Error removing event listener ${id}: ${err.message}`);
       }

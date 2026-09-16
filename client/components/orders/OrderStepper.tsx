@@ -1,6 +1,7 @@
 'use client';
 
 import { Check, Clock, Package, Truck, ShieldCheck, AlertTriangle } from 'lucide-react';
+import { Check, Package, Truck, ShieldCheck, AlertTriangle } from 'lucide-react';
 import type { OrderStatus } from '@/types/order';
 
 interface OrderStepperProps {

@@ -1,9 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { ChevronRight, ShoppingBag, Package, ArrowLeft } from 'lucide-react';
+import { ChevronRight, Package } from 'lucide-react';
 import Header from '@/components/common/Header';
 import BottomNav from '@/components/common/BottomNav';
 import { formatVND } from '@/utils/formatCurrency';
@@ -21,6 +23,32 @@ const statusBadge: Record<OrderStatus, { text: string; color: string }> = {
   REFUNDED: { text: 'Đã hoàn tiền', color: 'bg-purple-100 text-purple-800' },
   CANCELLED: { text: 'Đã hủy', color: 'bg-slate-100 text-slate-500' },
 };
+
+const INITIAL_MOCK_ORDERS: Order[] = [
+  {
+    id: 'ord-889214',
+    listingId: 'lst-001',
+    listingTitle: 'Máy ảnh Sony Alpha A7 III + Lens 28-70mm OSS Fullbox 99%',
+    listingImage: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=400&q=80',
+    buyerWallet: 'demo_wallet_abc123',
+    sellerWallet: 'usr-hoangnam',
+    amountVnd: 24500000,
+    status: 'DELIVERED',
+    deliveredAt: '2026-09-16T12:00:00.000Z',
+    createdAt: '2026-09-15T12:00:00.000Z',
+  },
+  {
+    id: 'ord-772109',
+    listingId: 'lst-003',
+    listingTitle: 'Giày Nike Air Jordan 1 Retro High OG Chicago Lost & Found',
+    listingImage: 'https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=400&q=80',
+    buyerWallet: 'demo_wallet_abc123',
+    sellerWallet: 'usr-sneakerhead',
+    amountVnd: 6800000,
+    status: 'COMPLETED',
+    createdAt: '2026-09-12T12:00:00.000Z',
+  },
+];
 
 export default function OrdersPage() {
   const [tab, setTab] = useState<'BUY' | 'SELL'>('BUY');
@@ -49,6 +77,7 @@ export default function OrdersPage() {
       createdAt: new Date(Date.now() - 1000 * 3600 * 96).toISOString(),
     },
   ]);
+  const [orders] = useState<Order[]>(INITIAL_MOCK_ORDERS);
 
   return (
     <div className="min-h-screen bg-slate-50 pb-28">

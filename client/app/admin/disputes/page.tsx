@@ -19,6 +19,45 @@ import { timeAgo } from '@/utils/formatTime';
 import { disputesApi } from '@/libs/api';
 import type { Dispute, DisputeStatus } from '@/types/dispute';
 
+const INITIAL_MOCK_DISPUTES: Dispute[] = [
+  {
+    id: 'disp-001',
+    orderId: 'ord-889214',
+    listingTitle: 'Máy ảnh Sony Alpha A7 III + Lens 28-70mm OSS Fullbox 99%',
+    listingImage: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=600&q=80',
+    buyerWallet: '0xBuyer...123',
+    sellerWallet: '0xSeller...999',
+    amountVnd: 24500000,
+    reason: 'Ống kính có vết xước sâu trên thấu kính trước khiến ảnh chụp bị lóa nặng khi ngược sáng. Người bán không đề cập trong phần mô tả tình trạng 99%.',
+    evidenceUrls: [
+      'https://images.unsplash.com/photo-1502920917128-1aa500764cbd?auto=format&fit=crop&w=600&q=80',
+      'https://images.unsplash.com/photo-1590247813693-5541d1c609fd?auto=format&fit=crop&w=600&q=80',
+    ],
+    chatHistory: [
+      { sender: 'Buyer', content: 'Chào bạn, mình mở hộp thì thấy kính trước có vết trầy xước khá rõ.', createdAt: '10:15' },
+      { sender: 'Seller', content: 'Lúc mình gửi đi bình thường mà bạn, có thể do đơn vị vận chuyển chăng?', createdAt: '10:20' },
+      { sender: 'Buyer', content: 'Hộp bên ngoài nguyên vẹn niêm phong, mình có quay video unbox từ đầu.', createdAt: '10:22' },
+    ],
+    status: 'OPEN',
+    createdAt: '2026-09-16T18:00:00.000Z',
+  },
+  {
+    id: 'disp-002',
+    orderId: 'ord-552100',
+    listingTitle: 'Bàn phím cơ Custom Keychron Q1 Pro',
+    listingImage: 'https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=600&q=80',
+    buyerWallet: '0xBuyer...456',
+    sellerWallet: '0xSeller...789',
+    amountVnd: 3200000,
+    reason: 'Hàng không đúng màu sắc đặt mua (giao màu bạc thay vì carbon đen).',
+    evidenceUrls: [
+      'https://images.unsplash.com/photo-1618384887929-16ec33fab9ef?auto=format&fit=crop&w=600&q=80',
+    ],
+    status: 'UNDER_REVIEW',
+    createdAt: '2026-09-16T05:00:00.000Z',
+  },
+];
+
 export default function AdminDisputesPage() {
   const [disputes, setDisputes] = useState<Dispute[]>([
     {
@@ -58,6 +97,7 @@ export default function AdminDisputesPage() {
       createdAt: new Date(Date.now() - 1000 * 3600 * 18).toISOString(),
     },
   ]);
+  const [disputes, setDisputes] = useState<Dispute[]>(INITIAL_MOCK_DISPUTES);
 
   const [selectedDispute, setSelectedDispute] = useState<Dispute>(disputes[0]);
   const [resolutionNote, setResolutionNote] = useState('');

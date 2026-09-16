@@ -1,16 +1,10 @@
-import {
-  IsArray,
-  IsNotEmpty,
-  IsOptional,
-  IsString,
-  IsUrl,
-} from 'class-validator';
+import { IsArray, IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
 export class DisputeEvidenceDto {
   @IsArray()
   @IsString({ each: true })
   @IsNotEmpty({ each: true })
-  evidenceUrls: string[];
+  evidenceUrls!: string[];
 
   @IsOptional()
   @IsString()

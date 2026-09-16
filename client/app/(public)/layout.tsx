@@ -23,5 +23,12 @@ export default function PublicLayout({ children }: PublicLayoutProps) {
         </Providers>
       </body>
     </html>
+    <div className="min-h-screen bg-slate-100 text-slate-900">
+      <Providers>
+        <div className="relative mx-auto flex min-h-screen w-full max-w-lg flex-col bg-white shadow-xl shadow-slate-200/50">
+          {children}
+        </div>
+      </Providers>
+    </div>
   );
 }

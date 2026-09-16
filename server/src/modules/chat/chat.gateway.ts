@@ -40,6 +40,7 @@ export class ChatGateway implements OnGatewayConnection, OnGatewayDisconnect {
   ) {
     const room = `conv_${data.conversationId}`;
     client.join(room);
+    void client.join(room);
     this.logger.log(`Client ${client.id} joined room ${room}`);
     return { event: 'joined', conversationId: data.conversationId };
   }

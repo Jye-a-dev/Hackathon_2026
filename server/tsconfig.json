@@ -5,6 +5,8 @@
     "resolvePackageJsonExports": true,
     "esModuleInterop": true,
     "isolatedModules": true,
+    "resolveJsonModule": true,
+    "types": ["jest", "node"],
     "declaration": true,
     "removeComments": true,
     "emitDecoratorMetadata": true,

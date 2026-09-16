@@ -13,6 +13,8 @@ import { CreateOrderDto } from './dto/create-order.dto';
 import { RaiseDisputeDto } from './dto/raise-dispute.dto';
 import { MarkDeliveredDto } from './dto/mark-delivered.dto';
 import { QueryEscrowDto } from './dto/query-escrow.dto';
+import { CancelOrderDto } from './dto/cancel-order.dto';
+import { DisputeEvidenceDto } from './dto/dispute-evidence.dto';
 
 @Controller('orders')
 export class OrdersController {
@@ -80,7 +82,7 @@ export class OrdersController {
    */
   @Post(':id/cancel')
   @HttpCode(HttpStatus.OK)
-  cancelOrder(@Param('id') id: string, @Body() dto?: any) {
+  cancelOrder(@Param('id') id: string, @Body() dto?: CancelOrderDto) {
     return this.escrowService.cancelOrder(id, dto);
   }
 
@@ -90,7 +92,7 @@ export class OrdersController {
    */
   @Post(':id/dispute/evidence')
   @HttpCode(HttpStatus.OK)
-  submitEvidence(@Param('id') id: string, @Body() dto: any) {
+  submitEvidence(@Param('id') id: string, @Body() dto: DisputeEvidenceDto) {
     return this.escrowService.submitEvidence(id, dto);
   }
 }

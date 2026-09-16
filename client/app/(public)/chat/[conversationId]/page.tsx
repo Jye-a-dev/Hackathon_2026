@@ -2,6 +2,7 @@
 
 import { use, useState, useEffect, useRef } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
 import {
@@ -13,6 +14,7 @@ import {
   Sparkles,
   ArrowRight,
 } from 'lucide-react';
+import type { Socket } from 'socket.io-client';
 import { formatVND } from '@/utils/formatCurrency';
 import { getChatSocket } from '@/libs/socket';
 import { chatApi, ordersApi } from '@/libs/api';
@@ -38,6 +40,7 @@ export default function DirectChatPage({
       senderWallet: 'usr-hoangnam',
       content: 'Chào bạn! Mình có thể hỗ trợ gì cho bạn về máy ảnh Sony A7 III này ạ?',
       createdAt: new Date(Date.now() - 1000 * 60 * 15).toISOString(),
+      createdAt: '2026-09-16T10:00:00.000Z',
     },
     {
       id: 'm2',
@@ -45,6 +48,7 @@ export default function DirectChatPage({
       senderWallet: wallet || 'demo_wallet_abc123',
       content: 'Máy chụp khoảng bao nhiêu shot rồi bạn? Có kèm thêm thẻ nhớ không ạ?',
       createdAt: new Date(Date.now() - 1000 * 60 * 10).toISOString(),
+      createdAt: '2026-09-16T10:05:00.000Z',
     },
     {
       id: 'm3',
@@ -52,6 +56,7 @@ export default function DirectChatPage({
       senderWallet: 'usr-hoangnam',
       content: 'Máy khoảng 5.2k shot bạn nhé, mình tặng kèm thẻ Sony 64GB Extreme Pro 170MB/s luôn ạ!',
       createdAt: new Date(Date.now() - 1000 * 60 * 5).toISOString(),
+      createdAt: '2026-09-16T10:10:00.000Z',
     },
   ]);
 
@@ -70,6 +75,7 @@ export default function DirectChatPage({
   // Socket.io integration with auto-reconnect
   useEffect(() => {
     let socket: any = null;
+    let socket: Socket | null = null;
     try {
       socket = getChatSocket();
       socket.connect();

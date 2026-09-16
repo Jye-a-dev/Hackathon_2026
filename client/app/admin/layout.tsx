@@ -15,5 +15,8 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
         <Providers>{children}</Providers>
       </body>
     </html>
+    <div className="min-h-screen bg-slate-900 text-slate-100">
+      <Providers>{children}</Providers>
+    </div>
   );
 }

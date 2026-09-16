@@ -63,6 +63,11 @@ export class AuthService {
   async requestPhoneOtp(
     phone: string,
   ): Promise<{ success: boolean; message: string; testOtp?: string }> {
+  requestPhoneOtp(phone: string): {
+    success: boolean;
+    message: string;
+    testOtp?: string;
+  } {
     if (!phone) {
       throw new BadRequestException('Phone number is required');
     }

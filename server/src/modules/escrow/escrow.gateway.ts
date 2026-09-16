@@ -38,6 +38,7 @@ export class EscrowGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (data?.orderId) {
       const room = `order:${data.orderId}`;
       client.join(room);
+      void client.join(room);
       this.logger.log(`Client ${client.id} joined room ${room}`);
       return { event: 'subscribed', orderId: data.orderId };
     }
@@ -51,6 +52,7 @@ export class EscrowGateway implements OnGatewayConnection, OnGatewayDisconnect {
     if (data?.orderId) {
       const room = `order:${data.orderId}`;
       client.leave(room);
+      void client.leave(room);
       this.logger.log(`Client ${client.id} left room ${room}`);
       return { event: 'unsubscribed', orderId: data.orderId };
     }

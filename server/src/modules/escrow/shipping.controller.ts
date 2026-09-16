@@ -23,23 +23,25 @@ export class ShippingController {
    */
   @Post('webhook')
   @HttpCode(HttpStatus.OK)
-  async handleWebhook(@Body() payload: Record<string, any>) {
+  async handleWebhook(@Body() payload: ShippingWebhookDto) {
     this.logger.log(`Received shipping webhook: ${JSON.stringify(payload)}`);
 
+    const raw = payload as Record<string, any>;
+
     // Parse tracking code from GHN / J&T / custom payloads
-    const trackingCode =
+    const trackingCode: string | undefined =
       payload.trackingCode ||
-      payload.tracking_code ||
-      payload.OrderCode ||
-      payload.order_code ||
-      payload.billcode;
+      raw.tracking_code ||
+      raw.OrderCode ||
+      raw.order_code ||
+      raw.billcode;
 
     // Parse status from standard or delivery partner formats
     const rawStatus = (
       payload.status ||
-      payload.Status ||
-      payload.scanstatus ||
-      payload.shipping_status ||
+      raw.Status ||
+      raw.scanstatus ||
+      raw.shipping_status ||
       ''
     )
       .toString()
@@ -61,7 +63,8 @@ export class ShippingController {
     }
 
     // Resolve orderId from explicit field or tracking code lookup
-    let targetOrderId = payload.orderId || payload.order_id;
+    let targetOrderId: string | number | undefined =
+      payload.orderId || raw.order_id;
     if (!targetOrderId && trackingCode) {
       const order = await this.escrowService.findByTrackingCode(trackingCode);
       if (order) {
@@ -75,33 +78,31 @@ export class ShippingController {
       );
     }
 
+    const orderIdStr = String(targetOrderId);
+
     // Idempotency check: check if order is already DELIVERED or beyond
-    const existingOrder = await this.escrowService.getOrder(
-      targetOrderId.toString(),
-    );
+    const existingOrder = await this.escrowService.getOrder(orderIdStr);
     const currentStatus = existingOrder?.db?.status;
     if (currentStatus && currentStatus !== 'LOCKED') {
       this.logger.log(
-        `Order ${targetOrderId} is already in status [${currentStatus}]. Skipping redundant markDelivered execution.`,
+        `Order ${orderIdStr} is already in status [${currentStatus}]. Skipping redundant markDelivered execution.`,
       );
       return {
         success: true,
-        orderId: targetOrderId.toString(),
+        orderId: orderIdStr,
         status: currentStatus,
         message: 'Order already processed (idempotent duplicate).',
       };
     }
 
     this.logger.log(
-      `Invoking escrowService.markDelivered for orderId: ${targetOrderId}`,
+      `Invoking escrowService.markDelivered for orderId: ${orderIdStr}`,
     );
-    const result = await this.escrowService.markDelivered(
-      targetOrderId.toString(),
-    );
+    const result = await this.escrowService.markDelivered(orderIdStr);
 
     return {
       success: true,
-      orderId: targetOrderId.toString(),
+      orderId: orderIdStr,
       status: 'DELIVERED',
       txSignature: result.txSignature,
     };

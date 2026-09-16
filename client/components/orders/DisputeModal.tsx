@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { AlertCircle, UploadCloud, X, Image as ImageIcon } from 'lucide-react';
+import { AlertCircle, X } from 'lucide-react';
 
 interface DisputeModalProps {
   isOpen: boolean;
@@ -56,6 +57,7 @@ export default function DisputeModal({
           <div className="flex items-center gap-2 text-red-600">
             <AlertCircle className="h-5 w-5" />
             <h3 className="text-base font-bold text-slate-900">Khiếu nại / Yêu cầu Trả hàng</h3>
+            <h3 className="text-base font-bold text-slate-900">Khiếu nại đơn #{orderId}</h3>
           </div>
           <button
             onClick={onClose}

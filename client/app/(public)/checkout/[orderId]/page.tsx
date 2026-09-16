@@ -1,6 +1,7 @@
 'use client';
 
 import { use, useState, useEffect, useRef } from 'react';
+import { use, useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -15,10 +16,12 @@ import {
   Sparkles,
   RefreshCw,
 } from 'lucide-react';
+import type { Socket } from 'socket.io-client';
 import confetti from 'canvas-confetti';
 import { formatVND } from '@/utils/formatCurrency';
 import { formatCountdown } from '@/utils/formatTime';
 import { ordersApi, paymentsApi } from '@/libs/api';
+import { ordersApi } from '@/libs/api';
 import { getEscrowSocket } from '@/libs/socket';
 import type { Order } from '@/types/order';
 
@@ -71,6 +74,7 @@ export default function CheckoutPage({
 
   // Handle successful payment
   const handlePaymentSuccess = () => {
+  const handlePaymentSuccess = useCallback(() => {
     if (isFinishedRef.current) return;
     isFinishedRef.current = true;
     if (pollingRef.current) clearInterval(pollingRef.current);
@@ -78,6 +82,7 @@ export default function CheckoutPage({
     setIsPaid(true);
     triggerCelebration();
   };
+  }, []);
 
   // Fetch initial order
   useEffect(() => {
@@ -99,6 +104,8 @@ export default function CheckoutPage({
 
     loadOrder();
   }, [resolvedParams.orderId]);
+    void loadOrder();
+  }, [resolvedParams.orderId, handlePaymentSuccess]);
 
   // Dual Fallback: 1) Socket.io + 2) Polling every 5s
   useEffect(() => {
@@ -106,12 +113,14 @@ export default function CheckoutPage({
 
     // 1. Socket.io listener
     let socket: any = null;
+    let socket: Socket | null = null;
     try {
       socket = getEscrowSocket();
       socket.connect();
       socket.emit('subscribe_order', { orderId: resolvedParams.orderId });
 
       socket.on('order_paid', (payload: any) => {
+      socket.on('order_paid', (payload: { orderId?: string }) => {
         if (payload?.orderId === resolvedParams.orderId) {
           handlePaymentSuccess();
         }
@@ -141,6 +150,7 @@ export default function CheckoutPage({
       }
     };
   }, [resolvedParams.orderId, isPaid]);
+  }, [resolvedParams.orderId, isPaid, handlePaymentSuccess]);
 
   // 15:00 countdown timer
   useEffect(() => {

@@ -7,6 +7,7 @@ import { Heart, MessageCircle, MapPin, ShieldCheck, Star, Images } from 'lucide-
 import { clsx } from 'clsx';
 import type { Listing } from '@/types/listing';
 import { formatVND, formatVNDCompact } from '@/utils/formatCurrency';
+import { formatVND } from '@/utils/formatCurrency';
 import { timeAgo } from '@/utils/formatTime';
 
 interface FeedCardProps {

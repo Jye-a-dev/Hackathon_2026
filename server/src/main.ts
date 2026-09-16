@@ -28,3 +28,4 @@ async function bootstrap() {
   logger.log(`WebSocket Gateway available at ws://localhost:${port}/escrow`);
 }
 bootstrap();
+void bootstrap();

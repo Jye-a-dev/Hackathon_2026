@@ -9,11 +9,11 @@ import {
 export class CreateListingDto {
   @IsNotEmpty()
   @IsString()
-  sellerWallet: string;
+  sellerWallet!: string;
 
   @IsNotEmpty()
   @IsString()
-  title: string;
+  title!: string;
 
   @IsOptional()
   @IsString()
@@ -21,7 +21,7 @@ export class CreateListingDto {
 
   @IsNotEmpty()
   @IsNumber()
-  priceVnd: number;
+  priceVnd!: number;
 
   @IsOptional()
   @IsNumber()
@@ -29,7 +29,7 @@ export class CreateListingDto {
 
   @IsNotEmpty()
   @IsString()
-  category: string;
+  category!: string;
 
   @IsOptional()
   @IsString()

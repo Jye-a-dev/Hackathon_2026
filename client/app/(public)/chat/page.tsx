@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Search, ShieldCheck, CheckCheck } from 'lucide-react';
+import { Search, ShieldCheck } from 'lucide-react';
 import Header from '@/components/common/Header';
 import BottomNav from '@/components/common/BottomNav';
 import { MOCK_LISTINGS } from '@/constants/mockData';

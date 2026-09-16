@@ -43,10 +43,12 @@ export class PaymentService {
    * Fetch current SOL/VND price (can be extended with CoinGecko or Pyth Oracle)
    */
   public async getCurrentSolVndRate(): Promise<number> {
+  public getCurrentSolVndRate(): Promise<number> {
     const envRate = process.env.SOL_VND_RATE
       ? parseFloat(process.env.SOL_VND_RATE)
       : this.DEFAULT_SOL_VND_RATE;
     return envRate;
+    return Promise.resolve(envRate);
   }
 
   /**

@@ -19,6 +19,30 @@ import { CancelOrderDto } from './dto/cancel-order.dto';
 import { EscrowEntity, EscrowDbStatus } from './entities/escrow.entity';
 import { DisputeDecision, PdaResult } from '../solana/solana.types';
 
+interface PublicKeyLike {
+  toBase58?(): string;
+  toString(): string;
+}
+
+interface ProgramEventData {
+  orderId?: { toString(): string } | string | number;
+  amount?: { toString(): string } | string | number;
+  buyer?: PublicKeyLike | string;
+  seller?: PublicKeyLike | string;
+  recipient?: PublicKeyLike | string;
+  deliveredAt?: { toNumber(): number };
+  timestamp?: { toNumber(): number };
+  status?: unknown;
+  [key: string]: unknown;
+}
+
+function toPubkeyString(val?: PublicKeyLike | string): string {
+  if (!val) return '';
+  if (typeof val === 'string') return val;
+  if (typeof val.toBase58 === 'function') return val.toBase58();
+  return val.toString();
+}
+
 @Injectable()
 export class EscrowService implements OnModuleInit {
   private readonly logger = new Logger(EscrowService.name);
@@ -38,8 +62,13 @@ export class EscrowService implements OnModuleInit {
    */
   private registerOnChainEventListener() {
     this.solanaService.subscribeToProgramEvents(
-      async (eventName: string, data: any, slot: number, sig?: string) => {
-        const orderId = data.orderId?.toString();
+      async (
+        eventName: string,
+        data: ProgramEventData,
+        slot: number,
+        sig?: string,
+      ) => {
+        const orderId: string = data.orderId ? data.orderId.toString() : '';
         if (!orderId) return;
 
         this.logger.log(
@@ -56,10 +85,12 @@ export class EscrowService implements OnModuleInit {
           case 'escrowInitialized': {
             const { escrowPda, vaultPda } =
               this.solanaService.calculatePdas(orderId);
-            const amount = data.amount?.toString() || '0';
-            const buyer = data.buyer?.toBase58?.() || data.buyer?.toString();
-            const seller = data.seller?.toBase58?.() || data.seller?.toString();
-            const arbiter = this.solanaService.getArbiterPublicKey().toBase58();
+            const amount: string = data.amount ? data.amount.toString() : '0';
+            const buyer: string = toPubkeyString(data.buyer);
+            const seller: string = toPubkeyString(data.seller);
+            const arbiter: string = this.solanaService
+              .getArbiterPublicKey()
+              .toBase58();
 
             await this.escrowRepo.create({
               orderId,
@@ -106,8 +137,7 @@ export class EscrowService implements OnModuleInit {
             const disputedAt = data.timestamp
               ? new Date(data.timestamp.toNumber() * 1000)
               : new Date();
-            const buyer =
-              data.buyer?.toBase58?.() || data.buyer?.toString() || '';
+            const buyer: string = toPubkeyString(data.buyer);
             await this.escrowRepo.markDisputed(orderId, disputedAt, sig);
             await this.escrowRepo.createDispute({
               orderId,
@@ -125,9 +155,12 @@ export class EscrowService implements OnModuleInit {
           case 'disputeResolved': {
             const rawStatus = data.status;
             const statusStr: EscrowDbStatus =
-              rawStatus && 'refunded' in rawStatus ? 'REFUNDED' : 'COMPLETED';
-            const recipient =
-              data.recipient?.toBase58?.() || data.recipient?.toString() || '';
+              rawStatus &&
+              typeof rawStatus === 'object' &&
+              'refunded' in rawStatus
+                ? 'REFUNDED'
+                : 'COMPLETED';
+            const recipient: string = toPubkeyString(data.recipient);
             const resolvedAt = new Date();
 
             await this.escrowRepo.markResolved(

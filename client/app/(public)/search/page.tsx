@@ -4,6 +4,7 @@ import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { Search as SearchIcon, MapPin, SlidersHorizontal, ArrowRight } from 'lucide-react';
+import { Search as SearchIcon } from 'lucide-react';
 import Header from '@/components/common/Header';
 import BottomNav from '@/components/common/BottomNav';
 import { formatVND } from '@/utils/formatCurrency';

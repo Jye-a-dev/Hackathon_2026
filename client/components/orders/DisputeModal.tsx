@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import { AlertCircle, UploadCloud, X, Image as ImageIcon } from 'lucide-react';
-import { AlertCircle, X } from 'lucide-react';
 
 interface DisputeModalProps {
   isOpen: boolean;

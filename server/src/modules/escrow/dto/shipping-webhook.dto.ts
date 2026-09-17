@@ -10,7 +10,6 @@ export class ShippingWebhookDto {
 
   @IsNotEmpty()
   @IsString()
-  status: string;
   status!: string;
 
   @IsOptional()

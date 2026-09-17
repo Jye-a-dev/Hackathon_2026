@@ -3,179 +3,181 @@
 import { useState } from 'react';
 import Image from 'next/image';
 import Link from 'next/link';
-import { Heart, MessageCircle, MapPin, ShieldCheck, Star, Images } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { Heart, ShieldCheck, MessageCircle, Star, MapPin } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { Listing } from '@/types/listing';
-import { formatVND, formatVNDCompact } from '@/utils/formatCurrency';
 import { formatVND } from '@/utils/formatCurrency';
 import { timeAgo } from '@/utils/formatTime';
 
-interface FeedCardProps {
+interface ProductCardProps {
   listing: Listing;
   index?: number;
   onChatClick?: (listing: Listing) => void;
-  onBuyClick?: (listing: Listing) => void;
 }
 
-const conditionLabel: Record<string, string> = {
-  NEW: 'Mới 100%',
-  LIKE_NEW: 'Như mới (99%)',
-  GOOD: 'Còn đẹp (90%)',
-  FAIR: 'Đã qua sử dụng',
+const CONDITION_MAP: Record<string, { label: string; color: string }> = {
+  NEW:      { label: 'Mới 100%',  color: 'bg-emerald-500' },
+  LIKE_NEW: { label: 'Like New',  color: 'bg-sky-500' },
+  GOOD:     { label: 'Còn tốt',   color: 'bg-amber-500' },
+  FAIR:     { label: 'Đã dùng',   color: 'bg-neutral-500' },
 };
 
-export default function FeedCard({ listing, index = 0, onChatClick, onBuyClick }: FeedCardProps) {
+const FALLBACK =
+  'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&w=800&q=80';
+
+export default function ProductCard({ listing, index = 0, onChatClick }: ProductCardProps) {
+  const router = useRouter();
   const [liked, setLiked] = useState(false);
-  const [likeCount, setLikeCount] = useState(listing.likeCount ?? 0);
   const [showHeart, setShowHeart] = useState(false);
-  const isPriority = index < 2; // LCP optimization: first 2 cards load eagerly
+
+  const images = listing.images?.length ? listing.images : [FALLBACK];
+  const seller = listing.seller ?? {
+    id: 'unknown', username: 'Người bán',
+    avatarUrl: 'https://api.dicebear.com/9.x/avataaars/svg?seed=user',
+    rating: 5.0, isVerified: true,
+  };
+  const cond = CONDITION_MAP[listing.condition] ?? CONDITION_MAP.FAIR;
+
+  const handleLike = (e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    setLiked((p) => !p);
+  };
 
   const handleDoubleTap = () => {
     if (!liked) {
       setLiked(true);
-      setLikeCount((c) => c + 1);
       setShowHeart(true);
       setTimeout(() => setShowHeart(false), 700);
     }
   };
 
-  const handleLikeBtn = (e: React.MouseEvent) => {
-    e.preventDefault();
-    setLiked((l) => !l);
-    setLikeCount((c) => liked ? c - 1 : c + 1);
+  const handleChat = (e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    if (onChatClick) {
+      onChatClick(listing);
+    } else {
+      router.push(`/chat?listingId=${listing.id}&seller=${seller.id}`);
+    }
+  };
+
+  const handleBuy = (e: React.MouseEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    router.push(`/listings/${listing.id}`);
   };
 
   return (
-    <article className="bg-white border-b border-slate-100 animate-slide-up">
-      {/* Seller header */}
-      <div className="flex items-center gap-3 px-4 py-3">
-        <Link href={`/profile/${listing.seller.id}`} className="relative">
+    <Link href={`/listings/${listing.id}`} className="group block" tabIndex={0}>
+      <article className="flex flex-col overflow-hidden rounded-2xl bg-white ring-1 ring-neutral-200/80 transition-all duration-200 hover:shadow-xl hover:shadow-neutral-900/8 hover:ring-neutral-300 sm:rounded-3xl">
+
+        {/* ── Image Frame ── */}
+        <div
+          className="relative aspect-3/4 overflow-hidden bg-neutral-100"
+          onDoubleClick={handleDoubleTap}
+        >
           <Image
-            src={listing.seller.avatarUrl ?? `https://api.dicebear.com/9.x/avataaars/svg?seed=${listing.seller.id}`}
-            alt={listing.seller.username}
-            width={40}
-            height={40}
-            className="rounded-full ring-2 ring-emerald-400/30"
+            src={images[0] || FALLBACK}
+            alt={listing.title}
+            fill
+            className="object-cover transition-transform duration-700 ease-out group-hover:scale-[1.04]"
+            priority={index < 6}
+            sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, 25vw"
           />
-          {listing.seller.isVerified && (
-            <ShieldCheck className="absolute -bottom-0.5 -right-0.5 h-4 w-4 rounded-full bg-white text-emerald-500" />
-          )}
-        </Link>
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-slate-800 truncate">
-              {listing.seller.username}
-            </span>
-            {listing.seller.isVerified && (
-              <span className="shrink-0 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-                ✓ Uy tín
-              </span>
-            )}
-          </div>
-          <div className="flex items-center gap-2 text-xs text-slate-500">
-            <span className="flex items-center gap-0.5">
-              <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
-              {listing.seller.rating.toFixed(1)}
-            </span>
-            <span>·</span>
-            <span>{listing.seller.totalDeals} giao dịch</span>
-            <span>·</span>
-            <span className="flex items-center gap-0.5">
-              <MapPin className="h-3 w-3" />
-              {listing.location.district}
-            </span>
-          </div>
-        </div>
-        <span className="text-xs text-slate-400">{timeAgo(listing.createdAt)}</span>
-      </div>
 
-      {/* Product image — fixed aspect ratio to prevent CLS */}
-      <div
-        className="relative aspect-square w-full cursor-pointer overflow-hidden bg-slate-100"
-        onDoubleClick={handleDoubleTap}
-      >
-        <Image
-          src={listing.images[0]}
-          alt={listing.title}
-          fill
-          className="object-cover transition-transform duration-300 hover:scale-[1.02]"
-          priority={isPriority}
-          sizes="(max-width: 768px) 100vw, 480px"
-        />
+          {/* Gradient scrim — bottom for badge legibility */}
+          <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/40 via-transparent to-transparent" />
 
-        {/* Image count badge */}
-        {listing.images.length > 1 && (
-          <span className="absolute right-3 top-3 flex items-center gap-1 rounded-full bg-black/40 px-2 py-0.5 text-xs font-semibold text-white backdrop-blur-sm">
-            <Images className="h-3 w-3" />
-            {listing.images.length}
+          {/* TOP-LEFT: Escrow trust badge */}
+          <span className="absolute left-2.5 top-2.5 flex items-center gap-1 rounded-full bg-white/90 px-2.5 py-1 text-[11px] font-semibold text-emerald-700 shadow-sm backdrop-blur-md">
+            <ShieldCheck className="h-3.5 w-3.5 stroke-[2.5] text-emerald-600" />
+            Ký quỹ 48h
           </span>
-        )}
 
-        {/* Condition badge */}
-        <span className="absolute bottom-3 left-3 rounded-full bg-black/50 px-2.5 py-1 text-[11px] font-semibold text-white backdrop-blur-sm">
-          {conditionLabel[listing.condition]}
-        </span>
-
-        {/* Double-tap heart burst */}
-        {showHeart && (
-          <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-            <Heart className="heart-burst h-24 w-24 fill-white text-white drop-shadow-2xl" />
-          </div>
-        )}
-      </div>
-
-      {/* Actions row */}
-      <div className="flex items-center justify-between px-4 py-2.5">
-        <div className="flex items-center gap-4">
+          {/* TOP-RIGHT: Favorite */}
           <button
-            onClick={handleLikeBtn}
-            aria-label={liked ? 'Bỏ thích' : 'Thích'}
-            className="flex items-center gap-1.5 transition-transform active:scale-90"
+            onClick={handleLike}
+            aria-label={liked ? 'Bỏ thích' : 'Yêu thích'}
+            className="absolute right-2.5 top-2.5 flex h-9 w-9 items-center justify-center rounded-full bg-white/85 text-neutral-600 shadow-sm backdrop-blur-sm transition-all hover:bg-white hover:text-rose-500 active:scale-90"
           >
             <Heart
-              className={clsx('h-6 w-6 transition-colors', liked ? 'fill-red-500 text-red-500' : 'text-slate-400')}
+              className={clsx('h-4.5 w-4.5 transition-all', liked && 'fill-rose-500 text-rose-500 scale-110')}
             />
-            <span className="text-sm font-medium text-slate-600">{likeCount}</span>
           </button>
-          <button
-            onClick={() => onChatClick?.(listing)}
-            aria-label="Nhắn tin"
-            className="flex items-center gap-1.5 text-slate-400 transition-transform active:scale-90 hover:text-slate-600"
-          >
-            <MessageCircle className="h-6 w-6" />
-          </button>
+
+          {/* BOTTOM-LEFT: Condition pill */}
+          <span className={clsx(
+            'absolute bottom-2.5 left-2.5 rounded-md px-2.5 py-1 text-[11px] font-semibold text-white shadow-sm backdrop-blur-sm',
+            cond.color + '/80',
+          )}>
+            {cond.label}
+          </span>
+
+          {/* Multiple images badge */}
+          {images.length > 1 && (
+            <span className="absolute bottom-2.5 right-2.5 flex items-center gap-0.5 rounded-md bg-black/50 px-2 py-1 text-[11px] font-medium text-white backdrop-blur-sm">
+              📷 {images.length}
+            </span>
+          )}
+
+          {/* Double-tap heart */}
+          {showHeart && (
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+              <Heart className="heart-burst h-24 w-24 fill-white text-white drop-shadow-2xl" />
+            </div>
+          )}
+
+          {/* Hover slide-up action bar */}
+          <div className="absolute inset-x-2.5 bottom-2.5 flex translate-y-4 gap-2 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">
+            <button
+              onClick={handleChat}
+              className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-white/95 text-[12px] font-semibold text-neutral-800 shadow-md backdrop-blur-md transition hover:bg-white active:scale-[0.97]"
+            >
+              <MessageCircle className="h-4 w-4" />
+              Nhắn tin
+            </button>
+            <button
+              onClick={handleBuy}
+              className="flex h-10 flex-1 items-center justify-center gap-1.5 rounded-xl bg-neutral-900 text-[12px] font-semibold text-white shadow-md transition hover:bg-neutral-800 active:scale-[0.97]"
+            >
+              <ShieldCheck className="h-4 w-4 stroke-[2.5]" />
+              Mua Ký Quỹ
+            </button>
+          </div>
         </div>
-      </div>
 
-      {/* Product info */}
-      <div className="px-4 pb-2">
-        <Link href={`/listings/${listing.id}`} className="block">
-          <p className="text-sm font-bold text-slate-900 line-clamp-2 hover:text-emerald-600 transition-colors">
-            {listing.title}
+        {/* ── Card Body ── */}
+        <div className="flex flex-col gap-1 p-3 sm:p-3.5">
+          {/* Price */}
+          <p className="text-base font-bold tracking-tight text-neutral-900 sm:text-[17px]">
+            {formatVND(listing.price)}
           </p>
-        </Link>
-        <p className="mt-1 text-lg font-black text-emerald-600">
-          {formatVND(listing.price)}
-        </p>
-      </div>
 
-      {/* CTA buttons */}
-      <div className="flex gap-2 px-4 pb-4">
-        <button
-          onClick={() => onChatClick?.(listing)}
-          id={`chat-btn-${listing.id}`}
-          className="flex-1 rounded-xl border border-slate-200 bg-white py-2.5 text-sm font-semibold text-slate-700 transition hover:border-emerald-400 hover:text-emerald-600 active:scale-95"
-        >
-          💬 Chat ngay
-        </button>
-        <button
-          onClick={() => onBuyClick?.(listing)}
-          id={`buy-btn-${listing.id}`}
-          className="flex-1 gradient-primary rounded-xl py-2.5 text-sm font-bold text-white shadow-md shadow-emerald-200 transition hover:opacity-90 active:scale-95"
-        >
-          🔒 Mua với Ký quỹ
-        </button>
-      </div>
-    </article>
+          {/* Title */}
+          <h3 className="line-clamp-2 text-sm font-medium leading-snug text-neutral-700 transition-colors group-hover:text-emerald-700">
+            {listing.title}
+          </h3>
+
+          {/* Seller meta */}
+          <div className="mt-0.5 flex items-center gap-1.5 text-[11px] text-neutral-400">
+            <span className="flex items-center gap-0.5 text-amber-500 font-medium">
+              <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
+              {Number(seller.rating ?? 5).toFixed(1)}
+            </span>
+            <span className="text-neutral-300">·</span>
+            <span className="max-w-20 truncate font-medium text-neutral-500">
+              {seller.username}
+            </span>
+            <span className="text-neutral-300">·</span>
+            <span className="flex items-center gap-0.5 truncate">
+              <MapPin className="h-3 w-3 shrink-0" />
+              {listing.location?.district ?? 'HCM'}
+            </span>
+          </div>
+
+          {/* Time */}
+          <p className="text-[10px] text-neutral-300">{timeAgo(listing.createdAt)}</p>
+        </div>
+      </article>
+    </Link>
   );
 }

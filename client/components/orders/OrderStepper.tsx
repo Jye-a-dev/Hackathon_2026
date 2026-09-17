@@ -1,6 +1,4 @@
 'use client';
-
-import { Check, Clock, Package, Truck, ShieldCheck, AlertTriangle } from 'lucide-react';
 import { Check, Package, Truck, ShieldCheck, AlertTriangle } from 'lucide-react';
 import type { OrderStatus } from '@/types/order';
 
@@ -69,7 +67,7 @@ export default function OrderStepper({ status }: OrderStepperProps) {
               {/* Connector line */}
               {idx > 0 && (
                 <div
-                  className={`absolute top-4 -left-1/2 w-full h-0.5 -z-0 ${
+                  className={`absolute top-4 -left-1/2 w-full h-0.5 z-0 ${
                     currentStep > idx ? 'bg-emerald-500' : 'bg-slate-200'
                   }`}
                 />

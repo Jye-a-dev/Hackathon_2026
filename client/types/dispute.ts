@@ -21,6 +21,8 @@ export interface Dispute {
 }
 
 export interface ResolveDisputePayload {
-  resolution: 'RELEASE_TO_SELLER' | 'REFUND_TO_BUYER';
+  resolution?: 'RELEASE_TO_SELLER' | 'REFUND_TO_BUYER';
+  decision?: 'ReleaseToSeller' | 'RefundToBuyer';
   note?: string;
+  notes?: string;
 }

@@ -17,7 +17,7 @@ export default function BottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="bottom-nav" aria-label="Thanh điều hướng chính">
+    <nav className="bottom-nav md:hidden" aria-label="Thanh điều hướng chính">
       <div className="flex items-end justify-around pt-2 max-w-lg mx-auto">
         {navItems.map(({ icon: Icon, label, href, isSell }) => {
           const isActive = pathname === href || (href !== '/' && pathname.startsWith(href));

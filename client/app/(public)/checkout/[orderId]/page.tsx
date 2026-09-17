@@ -1,6 +1,5 @@
 'use client';
 
-import { use, useState, useEffect, useRef } from 'react';
 import { use, useState, useEffect, useRef, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
@@ -18,14 +17,16 @@ import {
 } from 'lucide-react';
 import type { Socket } from 'socket.io-client';
 import confetti from 'canvas-confetti';
+import Header from '@/components/common/Header';
 import { formatVND } from '@/utils/formatCurrency';
 import { formatCountdown } from '@/utils/formatTime';
-import { ordersApi, paymentsApi } from '@/libs/api';
 import { ordersApi } from '@/libs/api';
 import { getEscrowSocket } from '@/libs/socket';
 import type { Order } from '@/types/order';
 
-export default function CheckoutPage({
+import { Suspense } from 'react';
+
+function CheckoutContent({
   params,
 }: {
   params: Promise<{ orderId: string }>;
@@ -36,11 +37,11 @@ export default function CheckoutPage({
 
   const [order, setOrder] = useState<Order | null>(null);
   const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const [isPaid, setIsPaid] = useState(false);
   const [copiedField, setCopiedField] = useState<string | null>(null);
-  const [countdownSec, setCountdownSec] = useState(15 * 60); // 15:00 minutes
+  const [countdownSec, setCountdownSec] = useState(15 * 60);
 
-  // Bank transfer info
   const bankInfo = {
     bankName: 'MB Bank (Ngân hàng Quân Đội)',
     bankCode: 'MB',
@@ -49,16 +50,16 @@ export default function CheckoutPage({
     transferContent: `KQ ${resolvedParams.orderId.slice(-6).toUpperCase()}`,
   };
 
-  const amountVnd = order?.amountVnd ?? Number(searchParams.get('amount') ?? 2450000);
+  const amountVnd =
+    order?.amountVnd ?? Number(searchParams.get('amount') ?? 2450000);
 
-  // Dynamic VietQR generator URL
-  const qrUrl = `https://img.vietqr.io/image/${bankInfo.bankCode}-${bankInfo.accountNumber}-compact2.png?amount=${amountVnd}&addInfo=${encodeURIComponent(bankInfo.transferContent)}&accountName=${encodeURIComponent(bankInfo.accountName)}`;
+  const qrUrl = `https://img.vietqr.io/image/${bankInfo.bankCode}-${bankInfo.accountNumber}-compact2.png?amount=${amountVnd}&addInfo=${encodeURIComponent(
+    bankInfo.transferContent,
+  )}&accountName=${encodeURIComponent(bankInfo.accountName)}`;
 
-  // Polling ref & socket ref for cleanup
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const isFinishedRef = useRef(false);
 
-  // Trigger celebration confetti
   const triggerCelebration = () => {
     try {
       confetti({
@@ -68,12 +69,10 @@ export default function CheckoutPage({
         colors: ['#10b981', '#6366f1', '#f59e0b', '#3b82f6'],
       });
     } catch {
-      // fallback if canvas not ready
+      // fallback
     }
   };
 
-  // Handle successful payment
-  const handlePaymentSuccess = () => {
   const handlePaymentSuccess = useCallback(() => {
     if (isFinishedRef.current) return;
     isFinishedRef.current = true;
@@ -81,66 +80,70 @@ export default function CheckoutPage({
 
     setIsPaid(true);
     triggerCelebration();
-  };
   }, []);
 
-  // Fetch initial order
   useEffect(() => {
     async function loadOrder() {
       try {
+        setLoading(true);
+        setErrorMsg(null);
         const data = await ordersApi.get(resolvedParams.orderId);
         if (data && data.id) {
           setOrder(data);
-          if (data.status === 'LOCKED' || data.status === 'COMPLETED') {
+          if (
+            data.status === 'LOCKED' ||
+            data.status === 'COMPLETED' ||
+            data.status === 'DELIVERED'
+          ) {
             handlePaymentSuccess();
           }
+        } else {
+          setErrorMsg('Không tìm thấy hợp đồng giao dịch');
         }
-      } catch (err) {
-        console.warn('Cannot fetch order from server, mock initialized:', err);
+      } catch (err: any) {
+        setErrorMsg(err?.message || 'Lỗi kết nối máy chủ');
       } finally {
         setLoading(false);
       }
     }
 
-    loadOrder();
-  }, [resolvedParams.orderId]);
     void loadOrder();
   }, [resolvedParams.orderId, handlePaymentSuccess]);
 
-  // Dual Fallback: 1) Socket.io + 2) Polling every 5s
+  // Socket.io + Polling Fallback
   useEffect(() => {
     if (isPaid || isFinishedRef.current) return;
 
-    // 1. Socket.io listener
-    let socket: any = null;
     let socket: Socket | null = null;
     try {
       socket = getEscrowSocket();
       socket.connect();
       socket.emit('subscribe_order', { orderId: resolvedParams.orderId });
 
-      socket.on('order_paid', (payload: any) => {
       socket.on('order_paid', (payload: { orderId?: string }) => {
         if (payload?.orderId === resolvedParams.orderId) {
           handlePaymentSuccess();
         }
       });
-    } catch (e) {
-      console.warn('Socket connection error:', e);
+    } catch {
+      // Socket fallback
     }
 
-    // 2. Fallback polling every 5s
     pollingRef.current = setInterval(async () => {
       if (isFinishedRef.current) return;
       try {
         const checked = await ordersApi.get(resolvedParams.orderId);
-        if (checked?.status === 'LOCKED' || checked?.status === 'COMPLETED') {
+        if (
+          checked?.status === 'LOCKED' ||
+          checked?.status === 'COMPLETED' ||
+          checked?.status === 'DELIVERED'
+        ) {
           handlePaymentSuccess();
         }
       } catch {
-        // Polling silent retry
+        // Retry silently
       }
-    }, 5000);
+    }, 4000);
 
     return () => {
       if (pollingRef.current) clearInterval(pollingRef.current);
@@ -149,10 +152,9 @@ export default function CheckoutPage({
         socket.disconnect();
       }
     };
-  }, [resolvedParams.orderId, isPaid]);
-  }, [resolvedParams.orderId, isPaid, handlePaymentSuccess]);
+  }, [isPaid, resolvedParams.orderId, handlePaymentSuccess]);
 
-  // 15:00 countdown timer
+  // Countdown timer
   useEffect(() => {
     if (isPaid) return;
     const timer = setInterval(() => {
@@ -164,7 +166,6 @@ export default function CheckoutPage({
         return prev - 1;
       });
     }, 1000);
-
     return () => clearInterval(timer);
   }, [isPaid]);
 
@@ -174,197 +175,222 @@ export default function CheckoutPage({
     setTimeout(() => setCopiedField(null), 2000);
   };
 
-  // Mock simulation for demo review
-  const handleSimulatePaid = () => {
-    handlePaymentSuccess();
-  };
-
-  if (isPaid) {
+  if (loading) {
     return (
-      <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 text-center animate-fade-in">
-        <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-full bg-emerald-100 text-emerald-600 mb-4 animate-bounce-in">
-          <ShieldCheck className="h-10 w-10 stroke-[2.5]" />
+      <div className="min-h-screen bg-slate-50">
+        <Header showLocation={false} />
+        <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-4">
+          <div className="skeleton h-8 w-40 rounded-xl" />
+          <div className="skeleton h-64 w-full rounded-3xl" />
         </div>
+      </div>
+    );
+  }
 
-        <span className="rounded-full bg-emerald-100 px-3 py-1 text-xs font-bold text-emerald-800 mb-2">
-          Ký quỹ thành công
-        </span>
-
-        <h1 className="text-2xl font-black text-slate-900 mb-2">
-          Đã nhận thanh toán {formatVND(amountVnd)}
-        </h1>
-
-        <p className="text-sm text-slate-600 max-w-sm mb-6 leading-relaxed">
-          Số tiền của bạn đang được <strong>khóa an toàn trong quỹ trung gian</strong>. Người bán sẽ tiến hành gửi hàng và bạn có <strong>48 giờ kiểm tra</strong> sau khi nhận.
-        </p>
-
-        <div className="bg-white rounded-2xl p-4 w-full max-w-sm border border-slate-100 text-left mb-6 space-y-2 text-xs text-slate-600">
-          <div className="flex justify-between">
-            <span className="text-slate-400">Mã giao dịch</span>
-            <span className="font-mono font-semibold">{resolvedParams.orderId}</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-slate-400">Trạng thái quỹ</span>
-            <span className="font-semibold text-emerald-600">Đã khóa an toàn</span>
-          </div>
-          <div className="flex justify-between">
-            <span className="text-slate-400">Thời gian nhận</span>
-            <span>Vừa xong</span>
-          </div>
+  if (errorMsg && !order) {
+    return (
+      <div className="min-h-screen bg-slate-50">
+        <Header showLocation={false} />
+        <div className="max-w-md mx-auto my-16 bg-white rounded-3xl p-8 border border-slate-100 shadow-xs text-center">
+          <p className="text-4xl mb-3">⚠️</p>
+          <h2 className="text-lg font-bold text-slate-800">{errorMsg}</h2>
+          <p className="text-xs text-slate-500 mt-1 mb-6">
+            Không tìm thấy thông tin đơn hàng để thanh toán.
+          </p>
+          <Link
+            href="/"
+            className="gradient-primary rounded-xl px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-200"
+          >
+            Quay lại Khám phá
+          </Link>
         </div>
-
-        <Link
-          href={`/orders/${resolvedParams.orderId}`}
-          className="gradient-primary w-full max-w-sm rounded-xl py-3 text-sm font-bold text-white shadow-lg shadow-emerald-200 transition active:scale-95 flex items-center justify-center gap-2"
-        >
-          <span>Theo dõi đơn hàng & 48h kiểm tra</span>
-          <ArrowRight className="h-4 w-4" />
-        </Link>
       </div>
     );
   }
 
   return (
     <div className="min-h-screen bg-slate-50 pb-20">
-      {/* Header */}
-      <header className="sticky top-0 z-40 flex items-center justify-between glass px-4 py-3 border-b border-slate-100">
-        <button
-          onClick={() => router.back()}
-          aria-label="Quay lại"
-          className="flex h-9 w-9 items-center justify-center rounded-xl bg-white shadow-sm hover:bg-slate-50 text-slate-700"
-        >
-          <ChevronLeft className="h-5 w-5" />
-        </button>
-        <span className="text-sm font-bold text-slate-800">Thanh toán Ký quỹ VietQR</span>
-        <div className="w-9" />
-      </header>
+      <Header showLocation={false} title="Thanh toán Ký quỹ" />
 
-      <div className="p-4 space-y-4 max-w-lg mx-auto">
-        {/* Countdown Bar */}
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-3 flex items-center justify-between">
-          <div className="flex items-center gap-2 text-amber-900 text-xs font-semibold">
-            <Clock className="h-4 w-4 text-amber-600 shrink-0" />
-            <span>Đơn hàng và tỷ giá giữ trong:</span>
-          </div>
-          <span className="font-mono font-black text-amber-700 text-sm bg-white px-2.5 py-0.5 rounded-lg border border-amber-200">
-            {formatCountdown(countdownSec)}
-          </span>
-        </div>
-
-        {/* Amount Card */}
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 text-center">
-          <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-            Số tiền chuyển khoản chính xác
-          </span>
-          <p className="text-3xl font-black text-emerald-600 mt-1">
-            {formatVND(amountVnd)}
-          </p>
-          <div className="mt-2 inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-xs font-medium text-emerald-700">
-            <ShieldCheck className="h-3.5 w-3.5" />
-            <span>Tiền được bảo vệ bởi Ký quỹ 48h</span>
-          </div>
-        </div>
-
-        {/* QR Code Container */}
-        <div className="bg-white rounded-2xl p-6 shadow-sm border border-slate-100 flex flex-col items-center">
-          <p className="text-xs text-slate-500 mb-3 text-center">
-            Mở ứng dụng ngân hàng bất kỳ để quét mã QR chuyển khoản tự động
-          </p>
-
-          <div className="relative p-3 bg-white rounded-2xl border-2 border-emerald-500/30 shadow-md">
-            <Image
-              src={qrUrl}
-              alt="Mã VietQR Chuyển khoản Ký quỹ"
-              width={240}
-              height={240}
-              className="rounded-xl"
-              priority
-              unoptimized
-            />
-          </div>
-
-          <div className="mt-4 flex items-center gap-1.5 text-xs text-slate-500">
-            <RefreshCw className="h-3.5 w-3.5 text-emerald-500 animate-spin" />
-            <span>Hệ thống tự động phát hiện thanh toán tức thì</span>
-          </div>
-        </div>
-
-        {/* Bank Transfer Details with 1-Tap Copy */}
-        <div className="bg-white rounded-2xl p-4 shadow-sm border border-slate-100 space-y-3">
-          <h3 className="text-xs font-bold text-slate-800 uppercase tracking-wider">
-            Hoặc chuyển khoản thủ công
-          </h3>
-
-          {/* Bank name */}
-          <div className="flex items-center justify-between py-1 border-b border-slate-100 text-xs">
-            <span className="text-slate-400">Ngân hàng</span>
-            <span className="font-semibold text-slate-800 text-right">{bankInfo.bankName}</span>
-          </div>
-
-          {/* Account number */}
-          <div className="flex items-center justify-between py-1 border-b border-slate-100 text-xs">
-            <span className="text-slate-400">Số tài khoản</span>
-            <div className="flex items-center gap-2">
-              <span className="font-mono font-bold text-slate-900">{bankInfo.accountNumber}</span>
-              <button
-                onClick={() => copyToClipboard(bankInfo.accountNumber, 'acc')}
-                className="rounded-md bg-slate-100 p-1 hover:bg-slate-200 text-slate-600"
-                aria-label="Sao chép số tài khoản"
-              >
-                {copiedField === 'acc' ? (
-                  <Check className="h-3.5 w-3.5 text-emerald-600" />
-                ) : (
-                  <Copy className="h-3.5 w-3.5" />
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Account name */}
-          <div className="flex items-center justify-between py-1 border-b border-slate-100 text-xs">
-            <span className="text-slate-400">Chủ tài khoản</span>
-            <span className="font-semibold text-slate-800">{bankInfo.accountName}</span>
-          </div>
-
-          {/* Transfer content */}
-          <div className="flex items-center justify-between py-1 border-b border-slate-100 text-xs">
-            <div className="flex flex-col">
-              <span className="text-slate-400">Nội dung chuyển khoản</span>
-              <span className="text-[10px] text-red-500 font-medium">* Bắt buộc chính xác</span>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="font-mono font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                {bankInfo.transferContent}
-              </span>
-              <button
-                onClick={() => copyToClipboard(bankInfo.transferContent, 'content')}
-                className="rounded-md bg-slate-100 p-1 hover:bg-slate-200 text-slate-600"
-                aria-label="Sao chép nội dung"
-              >
-                {copiedField === 'content' ? (
-                  <Check className="h-3.5 w-3.5 text-emerald-600" />
-                ) : (
-                  <Copy className="h-3.5 w-3.5" />
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Demo Test Simulation Button */}
-        <div className="bg-slate-100/80 rounded-2xl p-3 text-center">
-          <p className="text-[11px] text-slate-500 mb-2">
-            💡 Dành cho Giám khảo / Test Demo: Nhấn nút bên dưới để giả lập hoàn tất thanh toán VietQR ngay lập tức
-          </p>
+      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6">
+        <div className="mb-4">
           <button
-            onClick={handleSimulatePaid}
-            id="simulate-payment-btn"
-            className="w-full rounded-xl bg-white border border-emerald-300 py-2.5 text-xs font-bold text-emerald-700 hover:bg-emerald-50 transition shadow-sm"
+            onClick={() => router.back()}
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-emerald-600 transition"
           >
-            ⚡ Giả lập Quét mã QR Thành công (Demo)
+            <ChevronLeft className="h-4 w-4" />
+            <span>Quay lại</span>
           </button>
         </div>
-      </div>
+
+        {isPaid ? (
+          /* Payment Success State */
+          <div className="max-w-lg mx-auto bg-white rounded-3xl p-8 border border-emerald-100 shadow-sm text-center space-y-4 animate-bounce-in">
+            <div className="h-16 w-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
+              <Check className="h-8 w-8 stroke-[3]" />
+            </div>
+            <h2 className="text-xl font-black text-slate-900">
+              Đã nhận thanh toán Ký quỹ!
+            </h2>
+            <p className="text-xs text-slate-600 leading-relaxed">
+              Hợp đồng ký quỹ Solana đã kích hoạt thành công. Tiền của bạn đang được khóa an toàn và người bán đã nhận được thông báo để gửi hàng.
+            </p>
+
+            <div className="rounded-2xl bg-emerald-50/70 p-4 border border-emerald-100 text-left text-xs space-y-2">
+              <div className="flex justify-between">
+                <span className="text-emerald-800">Mã đơn hàng:</span>
+                <span className="font-mono font-bold text-emerald-900">
+                  #{resolvedParams.orderId}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-emerald-800">Số tiền ký quỹ:</span>
+                <span className="font-bold text-emerald-900">
+                  {formatVND(amountVnd)}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-emerald-800">Cơ chế an toàn:</span>
+                <span className="font-bold text-emerald-900">
+                  48h kiểm tra sau khi nhận
+                </span>
+              </div>
+            </div>
+
+            <button
+              onClick={() => router.push(`/orders/${resolvedParams.orderId}`)}
+              className="gradient-primary w-full rounded-2xl py-3.5 text-sm font-bold text-white shadow-lg shadow-emerald-200 transition hover:opacity-95"
+            >
+              Xem chi tiết tiến trình đơn hàng
+            </button>
+          </div>
+        ) : (
+          /* Pending Payment — 2-Column Responsive Layout */
+          <div className="grid grid-cols-1 md:grid-cols-12 gap-6 lg:gap-8">
+            {/* Left: VietQR Code Card */}
+            <div className="md:col-span-6 bg-white rounded-3xl p-6 shadow-xs border border-slate-100 space-y-4 flex flex-col items-center text-center">
+              {/* Timer badge */}
+              <div className="inline-flex items-center gap-1.5 rounded-full bg-amber-50 border border-amber-200 px-3 py-1 text-xs font-bold text-amber-800">
+                <Clock className="h-3.5 w-3.5 animate-spin" style={{ animationDuration: '4s' }} />
+                <span>Hết hạn sau: {formatCountdown(countdownSec)}</span>
+              </div>
+
+              {/* QR Image */}
+              <div className="relative aspect-square w-64 max-w-full rounded-2xl overflow-hidden border-2 border-emerald-500/30 p-2 bg-white shadow-xs">
+                <Image
+                  src={qrUrl}
+                  alt="VietQR Escrow"
+                  fill
+                  className="object-contain p-1"
+                />
+              </div>
+
+              <p className="text-xs text-slate-500 max-w-xs">
+                Mở app ngân hàng bất kỳ để quét mã QR chuyển khoản tự động. Hệ thống sẽ xác nhận ngay trong 3-5 giây.
+              </p>
+
+              {/* Live listening indicator */}
+              <div className="flex items-center gap-2 text-xs text-emerald-600 font-semibold bg-emerald-50 px-3 py-1.5 rounded-full">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 animate-ping" />
+                <span>Đang đợi tín hiệu thanh toán từ hệ thống...</span>
+              </div>
+            </div>
+
+            {/* Right: Bank Details & Escrow Summary */}
+            <div className="md:col-span-6 space-y-4">
+              {/* Order Info Card */}
+              <div className="bg-white rounded-3xl p-5 shadow-xs border border-slate-100 space-y-3">
+                <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                  <span className="text-xs text-slate-500">Mã giao dịch:</span>
+                  <span className="font-mono text-xs font-bold text-slate-800">
+                    #{resolvedParams.orderId}
+                  </span>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-slate-500">Số tiền cần chuyển:</span>
+                  <span className="text-xl font-black text-emerald-600">
+                    {formatVND(amountVnd)}
+                  </span>
+                </div>
+              </div>
+
+              {/* Bank Details Card */}
+              <div className="bg-white rounded-3xl p-5 shadow-xs border border-slate-100 space-y-3 text-xs">
+                <h3 className="font-bold text-slate-800 text-sm">
+                  Thông tin chuyển khoản thủ công
+                </h3>
+
+                <div className="space-y-2">
+                  <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl">
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Ngân hàng:</span>
+                      <span className="font-bold text-slate-800">{bankInfo.bankName}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl">
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Số tài khoản:</span>
+                      <span className="font-mono font-bold text-slate-900 text-sm">
+                        {bankInfo.accountNumber}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => copyToClipboard(bankInfo.accountNumber, 'acc')}
+                      className="text-emerald-600 font-bold p-1.5 hover:bg-white rounded-lg transition"
+                    >
+                      {copiedField === 'acc' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </button>
+                  </div>
+
+                  <div className="flex justify-between items-center bg-slate-50 p-2.5 rounded-xl">
+                    <div>
+                      <span className="text-slate-400 block text-[10px]">Nội dung chuyển:</span>
+                      <span className="font-mono font-bold text-emerald-700 text-sm">
+                        {bankInfo.transferContent}
+                      </span>
+                    </div>
+                    <button
+                      onClick={() => copyToClipboard(bankInfo.transferContent, 'content')}
+                      className="text-emerald-600 font-bold p-1.5 hover:bg-white rounded-lg transition"
+                    >
+                      {copiedField === 'content' ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Escrow Guarantee */}
+              <div className="bg-emerald-50/80 border border-emerald-100 rounded-3xl p-4 text-xs text-emerald-800 space-y-1.5">
+                <p className="font-bold flex items-center gap-1 text-emerald-900">
+                  <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                  Bảo vệ ký quỹ độc lập:
+                </p>
+                <p>
+                  Tiền chuyển vào được giữ an toàn trên Vault PDA. Người bán chỉ nhận được tiền sau khi bạn kiểm tra hàng hài lòng trong 48h.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+      </main>
     </div>
+  );
+}
+
+export default function CheckoutPage(props: {
+  params: Promise<{ orderId: string }>;
+}) {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8 text-xs font-semibold text-slate-400">
+          Đang tải trang thanh toán...
+        </div>
+      }
+    >
+      <CheckoutContent {...props} />
+    </Suspense>
   );
 }

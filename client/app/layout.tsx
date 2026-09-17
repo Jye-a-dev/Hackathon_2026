@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
+import Providers from "@/app/providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -11,9 +12,8 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="vi">
       <body className="antialiased selection:bg-emerald-500 selection:text-white">
-        {children}
+        <Providers>{children}</Providers>
       </body>
     </html>
   );
 }
-

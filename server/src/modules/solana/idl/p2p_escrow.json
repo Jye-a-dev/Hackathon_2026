@@ -213,6 +213,97 @@
           { "name": "refundToBuyer" }
         ]
       }
+    },
+    {
+      "name": "escrow",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "orderId", "type": "u64" },
+          { "name": "payer", "type": "pubkey" },
+          { "name": "buyer", "type": "pubkey" },
+          { "name": "seller", "type": "pubkey" },
+          { "name": "arbiter", "type": "pubkey" },
+          { "name": "amount", "type": "u64" },
+          { "name": "status", "type": { "defined": { "name": "escrowStatus" } } },
+          { "name": "createdAt", "type": "i64" },
+          { "name": "deliveredAt", "type": "i64" },
+          { "name": "timeoutDuration", "type": "i64" },
+          { "name": "bump", "type": "u8" },
+          { "name": "vaultBump", "type": "u8" }
+        ]
+      }
+    },
+    {
+      "name": "escrowInitialized",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "orderId", "type": "u64" },
+          { "name": "buyer", "type": "pubkey" },
+          { "name": "seller", "type": "pubkey" },
+          { "name": "amount", "type": "u64" },
+          { "name": "timestamp", "type": "i64" }
+        ]
+      }
+    },
+    {
+      "name": "deliveredMarked",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "orderId", "type": "u64" },
+          { "name": "deliveredAt", "type": "i64" },
+          { "name": "timeoutAt", "type": "i64" }
+        ]
+      }
+    },
+    {
+      "name": "escrowCompleted",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "orderId", "type": "u64" },
+          { "name": "seller", "type": "pubkey" },
+          { "name": "amount", "type": "u64" },
+          { "name": "timestamp", "type": "i64" }
+        ]
+      }
+    },
+    {
+      "name": "disputeRaised",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "orderId", "type": "u64" },
+          { "name": "buyer", "type": "pubkey" },
+          { "name": "timestamp", "type": "i64" }
+        ]
+      }
+    },
+    {
+      "name": "disputeResolved",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "orderId", "type": "u64" },
+          { "name": "recipient", "type": "pubkey" },
+          { "name": "amount", "type": "u64" },
+          { "name": "status", "type": { "defined": { "name": "escrowStatus" } } }
+        ]
+      }
+    },
+    {
+      "name": "escrowCancelled",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          { "name": "orderId", "type": "u64" },
+          { "name": "buyer", "type": "pubkey" },
+          { "name": "amount", "type": "u64" },
+          { "name": "timestamp", "type": "i64" }
+        ]
+      }
     }
   ]
 }

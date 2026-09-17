@@ -7,6 +7,7 @@ export interface ChatMessage {
   senderWallet: string;
   content: string;
   imageUrl?: string;
+  isRead?: boolean;
   createdAt: string;
 }
 
@@ -21,4 +22,5 @@ export interface Conversation {
   lastMessage?: string;
   lastMessageAt?: string;
   unreadCount?: number;
+  createdAt?: string;
 }

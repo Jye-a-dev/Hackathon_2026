@@ -1,5 +1,5 @@
 export const appConfig = () => ({
-  port: parseInt(process.env.PORT ?? '3001', 10),
+  port: parseInt(process.env.PORT ?? '3000', 10),
   database: {
     url: process.env.DATABASE_URL,
     maxPool: 20,

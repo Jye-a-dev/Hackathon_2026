@@ -12,7 +12,7 @@ export interface EnvironmentVariables {
 export const validateEnv = (
   config: Record<string, unknown>,
 ): EnvironmentVariables => {
-  const port = parseInt(config.PORT as string, 10) || 3001;
+  const port = parseInt(config.PORT as string, 10) || 3000;
   const timeoutDuration =
     parseInt(config.DEFAULT_TIMEOUT_DURATION as string, 10) || 172800;
 

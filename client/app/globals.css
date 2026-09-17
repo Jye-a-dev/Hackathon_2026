@@ -113,9 +113,16 @@ body {
    Feed layout — scroll snap for smooth swipe
    ───────────────────────────────────────────── */
 .feed-container {
-  max-width: 480px;
+  width: 100%;
+  max-width: 1280px;
   margin: 0 auto;
   padding-bottom: calc(4.5rem + env(safe-area-inset-bottom));
+}
+
+@media (min-width: 768px) {
+  .feed-container {
+    padding-bottom: 2rem;
+  }
 }
 
 /* Gradient overlay on feed card images */

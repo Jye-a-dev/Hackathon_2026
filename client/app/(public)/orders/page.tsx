@@ -1,16 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { ChevronRight, ShoppingBag, Package, ArrowLeft } from 'lucide-react';
-import { ChevronRight, Package } from 'lucide-react';
+import { ChevronRight, Package, RefreshCw, ShieldCheck } from 'lucide-react';
 import Header from '@/components/common/Header';
 import BottomNav from '@/components/common/BottomNav';
 import { formatVND } from '@/utils/formatCurrency';
-import { timeAgo } from '@/utils/formatTime';
 import { ordersApi } from '@/libs/api';
+import { useAuthStore } from '@/store/useAuthStore';
 import type { Order, OrderStatus } from '@/types/order';
 
 const statusBadge: Record<OrderStatus, { text: string; color: string }> = {
@@ -24,72 +22,50 @@ const statusBadge: Record<OrderStatus, { text: string; color: string }> = {
   CANCELLED: { text: 'Đã hủy', color: 'bg-slate-100 text-slate-500' },
 };
 
-const INITIAL_MOCK_ORDERS: Order[] = [
-  {
-    id: 'ord-889214',
-    listingId: 'lst-001',
-    listingTitle: 'Máy ảnh Sony Alpha A7 III + Lens 28-70mm OSS Fullbox 99%',
-    listingImage: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=400&q=80',
-    buyerWallet: 'demo_wallet_abc123',
-    sellerWallet: 'usr-hoangnam',
-    amountVnd: 24500000,
-    status: 'DELIVERED',
-    deliveredAt: '2026-09-16T12:00:00.000Z',
-    createdAt: '2026-09-15T12:00:00.000Z',
-  },
-  {
-    id: 'ord-772109',
-    listingId: 'lst-003',
-    listingTitle: 'Giày Nike Air Jordan 1 Retro High OG Chicago Lost & Found',
-    listingImage: 'https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=400&q=80',
-    buyerWallet: 'demo_wallet_abc123',
-    sellerWallet: 'usr-sneakerhead',
-    amountVnd: 6800000,
-    status: 'COMPLETED',
-    createdAt: '2026-09-12T12:00:00.000Z',
-  },
-];
-
 export default function OrdersPage() {
+  const { wallet } = useAuthStore();
   const [tab, setTab] = useState<'BUY' | 'SELL'>('BUY');
-  const [orders, setOrders] = useState<Order[]>([
-    {
-      id: 'ord-889214',
-      listingId: 'lst-001',
-      listingTitle: 'Máy ảnh Sony Alpha A7 III + Lens 28-70mm OSS Fullbox 99%',
-      listingImage: 'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=400&q=80',
-      buyerWallet: 'demo_wallet_abc123',
-      sellerWallet: 'usr-hoangnam',
-      amountVnd: 24500000,
-      status: 'DELIVERED',
-      deliveredAt: new Date(Date.now() - 1000 * 3600 * 8).toISOString(),
-      createdAt: new Date(Date.now() - 1000 * 3600 * 24).toISOString(),
-    },
-    {
-      id: 'ord-772109',
-      listingId: 'lst-003',
-      listingTitle: 'Giày Nike Air Jordan 1 Retro High OG Chicago Lost & Found',
-      listingImage: 'https://images.unsplash.com/photo-1552346154-21d32810aba3?auto=format&fit=crop&w=400&q=80',
-      buyerWallet: 'demo_wallet_abc123',
-      sellerWallet: 'usr-sneakerhead',
-      amountVnd: 6800000,
-      status: 'COMPLETED',
-      createdAt: new Date(Date.now() - 1000 * 3600 * 96).toISOString(),
-    },
-  ]);
-  const [orders] = useState<Order[]>(INITIAL_MOCK_ORDERS);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const fetchOrders = async () => {
+    setLoading(true);
+    setErrorMsg(null);
+    try {
+      const allOrders = await ordersApi.list();
+      setOrders(allOrders);
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'Không thể tải danh sách đơn hàng');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchOrders();
+  }, [wallet]);
+
+  const filteredOrders = orders.filter((o) => {
+    if (tab === 'SELL') {
+      return wallet ? o.sellerWallet.toLowerCase() === wallet.toLowerCase() : true;
+    }
+    return true; // Show buyer / all orders
+  });
 
   return (
-    <div className="min-h-screen bg-slate-50 pb-28">
+    <div className="min-h-screen bg-slate-50 pb-28 md:pb-12">
       <Header title="Đơn hàng của tôi" showLocation={false} />
 
-      <div className="max-w-lg mx-auto p-4 space-y-4">
+      <main className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-4 space-y-4">
         {/* Tabs: Đơn Mua / Đơn Bán */}
-        <div className="flex bg-slate-200/70 p-1 rounded-2xl">
+        <div className="flex bg-slate-200/70 p-1 rounded-2xl max-w-sm">
           <button
             onClick={() => setTab('BUY')}
             className={`flex-1 py-2 text-xs font-bold rounded-xl transition ${
-              tab === 'BUY' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'
+              tab === 'BUY'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             Đơn mua ({orders.length})
@@ -97,60 +73,116 @@ export default function OrdersPage() {
           <button
             onClick={() => setTab('SELL')}
             className={`flex-1 py-2 text-xs font-bold rounded-xl transition ${
-              tab === 'SELL' ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-600'
+              tab === 'SELL'
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Đơn bán (0)
+            Đơn bán ({orders.filter((o) => o.sellerWallet === wallet).length})
           </button>
         </div>
 
-        {orders.length === 0 ? (
-          <div className="py-16 text-center">
+        {loading ? (
+          <div className="space-y-3">
+            {[1, 2, 3].map((n) => (
+              <div
+                key={n}
+                className="bg-white rounded-3xl p-4 border border-slate-100 shadow-xs space-y-3"
+              >
+                <div className="skeleton h-4 w-32" />
+                <div className="flex gap-3">
+                  <div className="skeleton h-16 w-16 rounded-xl shrink-0" />
+                  <div className="space-y-2 flex-1">
+                    <div className="skeleton h-4 w-3/4" />
+                    <div className="skeleton h-5 w-24" />
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        ) : errorMsg ? (
+          <div className="py-12 text-center bg-white rounded-3xl border border-red-100 p-6 shadow-xs">
+            <p className="text-3xl mb-2">⚠️</p>
+            <p className="text-sm font-bold text-slate-800">{errorMsg}</p>
+            <button
+              onClick={fetchOrders}
+              className="mt-4 inline-flex items-center gap-1.5 gradient-primary px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm"
+            >
+              <RefreshCw className="h-3.5 w-3.5" />
+              <span>Tải lại</span>
+            </button>
+          </div>
+        ) : filteredOrders.length === 0 ? (
+          <div className="py-16 text-center bg-white rounded-3xl border border-slate-100 p-8 shadow-xs">
             <Package className="h-12 w-12 text-slate-300 mx-auto mb-2" />
-            <p className="text-sm font-semibold text-slate-600">Bạn chưa có đơn hàng nào</p>
+            <p className="text-sm font-bold text-slate-700">Chưa có đơn hàng nào</p>
+            <p className="text-xs text-slate-400 mt-1 mb-4">
+              Các hợp đồng ký quỹ bạn tạo sẽ xuất hiện tại đây.
+            </p>
+            <Link
+              href="/"
+              className="gradient-primary px-5 py-2.5 rounded-xl text-xs font-bold text-white shadow-sm inline-block"
+            >
+              Khám phá sản phẩm ngay
+            </Link>
           </div>
         ) : (
-          <div className="space-y-3">
-            {orders.map((order) => {
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
+            {filteredOrders.map((order) => {
               const badge = statusBadge[order.status] || statusBadge.LOCKED;
               return (
                 <Link
                   key={order.id}
                   href={`/orders/${order.id}`}
-                  className="block bg-white rounded-2xl p-4 shadow-sm border border-slate-100 hover:border-emerald-300 transition"
+                  className="bg-white rounded-3xl p-4 sm:p-5 shadow-xs border border-slate-100 hover:border-emerald-300 hover:shadow-md transition flex flex-col justify-between"
                 >
-                  <div className="flex items-center justify-between pb-2 border-b border-slate-100 text-xs">
-                    <span className="font-mono text-slate-400 font-medium">#{order.id}</span>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${badge.color}`}>
-                      {badge.text}
-                    </span>
+                  <div>
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-100 text-xs">
+                      <span className="font-mono text-slate-400 font-semibold">
+                        #{order.id.slice(-8)}
+                      </span>
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${badge.color}`}
+                      >
+                        {badge.text}
+                      </span>
+                    </div>
+
+                    <div className="flex gap-3.5 pt-3">
+                      <div className="relative h-16 w-16 shrink-0 rounded-2xl overflow-hidden bg-slate-100 border border-slate-100">
+                        <Image
+                          src={order.listingImage}
+                          alt={order.listingTitle}
+                          fill
+                          className="object-cover"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="text-xs font-bold text-slate-800 line-clamp-2">
+                          {order.listingTitle}
+                        </h4>
+                        <p className="mt-1 text-sm font-black text-emerald-600">
+                          {formatVND(order.amountVnd)}
+                        </p>
+                      </div>
+                    </div>
                   </div>
 
-                  <div className="flex gap-3 pt-3">
-                    <div className="relative h-16 w-16 shrink-0 rounded-xl overflow-hidden bg-slate-100 border border-slate-100">
-                      <Image
-                        src={order.listingImage}
-                        alt={order.listingTitle}
-                        fill
-                        className="object-cover"
-                      />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="text-xs font-bold text-slate-800 line-clamp-2">
-                        {order.listingTitle}
-                      </h4>
-                      <p className="mt-1 text-sm font-black text-emerald-600">
-                        {formatVND(order.amountVnd)}
-                      </p>
-                    </div>
-                    <ChevronRight className="h-5 w-5 text-slate-300 self-center" />
+                  <div className="mt-3 pt-2.5 border-t border-slate-50 flex items-center justify-between text-[11px] text-slate-400">
+                    <span className="flex items-center gap-1 text-emerald-600 font-semibold">
+                      <ShieldCheck className="h-3.5 w-3.5" />
+                      Ký quỹ bảo vệ
+                    </span>
+                    <span className="flex items-center gap-1 hover:text-slate-600">
+                      Chi tiết <ChevronRight className="h-3.5 w-3.5" />
+                    </span>
                   </div>
                 </Link>
               );
             })}
           </div>
         )}
-      </div>
+      </main>
 
       <BottomNav />
     </div>

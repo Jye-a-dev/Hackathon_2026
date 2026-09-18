@@ -95,7 +95,7 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
       const programIdStr: string =
         process.env.SOLANA_PROGRAM_ID ||
         idlAddress ||
-        'Eh9UPtnvbD3SX7NkNMk9BUKX6marhVMHWhdQ8Gus557a';
+        'HxRDoZFg52q9R5y1VGTSPEMqJjyW3WNgnxsz5bN8ooXk';
 
       this.programId = new PublicKey(programIdStr);
 

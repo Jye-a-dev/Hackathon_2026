@@ -85,6 +85,11 @@ export function useMyOrders(params?: {
   });
 }
 
+const getErrorMessage = (err: unknown, fallback: string): string => {
+  const e = err as { response?: { data?: { message?: string } } };
+  return e?.response?.data?.message || (err instanceof Error ? err.message : fallback);
+};
+
 export function useConfirmOrder() {
   const qc = useQueryClient();
   return useMutation({
@@ -93,8 +98,8 @@ export function useConfirmOrder() {
       qc.invalidateQueries({ queryKey: ['order', data.id] });
       toast.success('Đã xác nhận nhận hàng. Tiền đang được giải ngân cho người bán.');
     },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.message ?? 'Không thể xác nhận. Vui lòng thử lại.');
+    onError: (err: unknown) => {
+      toast.error(getErrorMessage(err, 'Không thể xác nhận. Vui lòng thử lại.'));
     },
   });
 }
@@ -108,18 +113,18 @@ export function useRaiseDispute() {
       qc.invalidateQueries({ queryKey: ['order', data.id] });
       toast.warning('Đã gửi khiếu nại. Trọng tài sẽ xem xét trong vòng 24h.');
     },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.message ?? 'Không thể gửi khiếu nại.');
+    onError: (err: unknown) => {
+      toast.error(getErrorMessage(err, 'Không thể gửi khiếu nại.'));
     },
   });
 }
 
 // ─── Payments ─────────────────────────────────────────────────────────────────
 
-export function usePaymentQr(orderId: string) {
+export function usePaymentQr(orderId: string, amountVnd?: number) {
   return useQuery({
-    queryKey: ['payment-qr', orderId],
-    queryFn: () => paymentsApi.getPaymentQr(orderId),
+    queryKey: ['payment-qr', orderId, amountVnd],
+    queryFn: () => paymentsApi.getPaymentQr(orderId, amountVnd),
     enabled: !!orderId,
     staleTime: 1000 * 60, // QR valid for ~1 min before refresh
     retry: 3,
@@ -129,20 +134,18 @@ export function usePaymentQr(orderId: string) {
 // ─── Current User ─────────────────────────────────────────────────────────────
 
 export function useCurrentUser() {
-  const { jwtToken } = (() => {
-    try {
-      // Lazy import to avoid SSR issues with Zustand
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const { useAuthStore } = require('@/store/useAuthStore');
-      return useAuthStore.getState();
-    } catch {
-      return { jwtToken: null };
-    }
-  })();
-
   return useQuery({
     queryKey: ['users', 'me'],
     queryFn: () => usersApi.getMe(),
+    initialData: () => {
+      if (typeof window === 'undefined') return undefined;
+      try {
+        const stored = localStorage.getItem('kyquy_user');
+        return stored ? JSON.parse(stored) : undefined;
+      } catch {
+        return undefined;
+      }
+    },
     staleTime: 1000 * 60 * 5, // 5 min
     retry: 1,
     // Only fetch if authenticated
@@ -154,11 +157,12 @@ export function useCurrentUser() {
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────
 
-export function useConversations(wallet: string) {
+export function useConversations(currentUserId?: string) {
+  const validId = currentUserId && currentUserId !== 'me' ? currentUserId : undefined;
   return useQuery({
-    queryKey: ['conversations', wallet],
-    queryFn: () => chatApi.listConversations(wallet),
-    enabled: !!wallet,
+    queryKey: ['conversations', validId],
+    queryFn: () => chatApi.listConversations(validId ?? ''),
+    enabled: Boolean(validId),
     staleTime: 1000 * 20,
     refetchInterval: 15_000, // poll every 15s for new conversations
   });
@@ -209,8 +213,8 @@ export function useCompleteOrder() {
       qc.invalidateQueries({ queryKey: ['order', data.id] });
       toast.success('Đã kích hoạt giải ngân quỹ cho người bán.');
     },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.message ?? 'Không thể giải ngân đơn hàng.');
+    onError: (err: unknown) => {
+      toast.error(getErrorMessage(err, 'Không thể giải ngân đơn hàng.'));
     },
   });
 }
@@ -225,8 +229,8 @@ export function useCancelOrder() {
       qc.invalidateQueries({ queryKey: ['order', data.id] });
       toast.success('Đã hủy đơn hàng và hoàn tiền về ví người mua.');
     },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.message ?? 'Không thể hủy đơn hàng.');
+    onError: (err: unknown) => {
+      toast.error(getErrorMessage(err, 'Không thể hủy đơn hàng.'));
     },
   });
 }
@@ -251,8 +255,8 @@ export function useResolveDispute() {
           : 'Đã giải ngân cho người bán',
       );
     },
-    onError: (err: any) => {
-      toast.error(err?.response?.data?.message ?? 'Không thể phân xử. Thử lại sau.');
+    onError: (err: unknown) => {
+      toast.error(getErrorMessage(err, 'Không thể phân xử. Thử lại sau.'));
     },
   });
 }

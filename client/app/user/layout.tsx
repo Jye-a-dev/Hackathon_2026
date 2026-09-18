@@ -1,8 +1,9 @@
 'use client';
 
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   User,
   ShoppingBag,
@@ -19,6 +20,8 @@ import PublicFooter from '@/components/layouts/PublicFooter';
 import MobileBottomNav from '@/components/layouts/MobileBottomNav';
 import { useCurrentUser } from '@/hooks/useMarketplace';
 import { useAuthStore } from '@/store/useAuthStore';
+import { performFullLogout } from '@/libs/logout';
+
 
 interface UserLayoutProps {
   children: React.ReactNode;
@@ -54,9 +57,10 @@ const USER_NAV_ITEMS = [
 
 export default function UserLayout({ children }: UserLayoutProps) {
   const pathname = usePathname();
-  const router = useRouter();
+  const queryClient = useQueryClient();
   const { data: user, isLoading } = useCurrentUser();
-  const { logout, isLoggedIn } = useAuthStore();
+  useAuthStore();
+
 
   const name = user?.username || 'Người dùng';
   const rating = user?.rating ?? 5.0;
@@ -135,8 +139,7 @@ export default function UserLayout({ children }: UserLayoutProps) {
               <button
                 type="button"
                 onClick={() => {
-                  logout();
-                  router.push('/auth/login');
+                  performFullLogout(queryClient);
                 }}
                 className="hidden lg:flex items-center gap-2.5 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50"
               >

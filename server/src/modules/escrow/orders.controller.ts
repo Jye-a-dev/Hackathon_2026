@@ -68,6 +68,15 @@ export class OrdersController {
   }
 
   /**
+   * POST /orders/:id/confirm
+   * Buyer confirms receipt (release funds to seller)
+   */
+  @Post(':id/confirm')
+  confirmOrder(@Param('id') id: string) {
+    return this.escrowService.completeOrder(id);
+  }
+
+  /**
    * POST /orders/:id/complete
    * Complete escrow (release funds to seller)
    */

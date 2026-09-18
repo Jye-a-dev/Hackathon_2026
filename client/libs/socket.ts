@@ -2,33 +2,67 @@
 
 import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL =
-  process.env.NEXT_PUBLIC_SOCKET_URL ?? 'http://localhost:3001';
+const getSocketBaseUrl = (): string => {
+  if (process.env.NEXT_PUBLIC_SOCKET_URL) {
+    return process.env.NEXT_PUBLIC_SOCKET_URL.replace(/\/+$/, '');
+  }
+  if (process.env.NEXT_PUBLIC_API_URL) {
+    return process.env.NEXT_PUBLIC_API_URL.replace(/\/api\/?$/, '').replace(/\/+$/, '');
+  }
+  return 'http://localhost:3001';
+};
+
+const SOCKET_URL = getSocketBaseUrl();
 
 const TOKEN_KEY = 'kyquy_token';
 
 const getToken = (): string | null =>
   typeof window !== 'undefined' ? localStorage.getItem(TOKEN_KEY) : null;
 
+const getUser = () => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = localStorage.getItem('kyquy_user');
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+};
+
 // ─── Chat Socket (namespace /chat) ────────────────────────────────────────────
 let chatSocket: Socket | null = null;
 
 export function getChatSocket(): Socket {
-  if (!chatSocket || !chatSocket.connected) {
+  const token = getToken();
+  const user = getUser();
+  const authPayload = {
+    token,
+    userId: user?.id,
+    id: user?.id,
+    wallet: user?.wallet_address || user?.wallet || user?.id,
+    walletAddress: user?.wallet_address || user?.wallet,
+  };
+
+  if (!chatSocket) {
     chatSocket = io(`${SOCKET_URL}/chat`, {
-      auth: { token: getToken() }, // JWT handshake
+      auth: authPayload, // JWT handshake
       transports: ['websocket', 'polling'],
       autoConnect: true,
+      reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 2000,
     });
+  } else {
+    chatSocket.auth = authPayload;
   }
   return chatSocket;
 }
 
 export function disconnectChatSocket(): void {
-  chatSocket?.disconnect();
-  chatSocket = null;
+  if (chatSocket) {
+    chatSocket.disconnect();
+    chatSocket = null;
+  }
 }
 
 // ─── Escrow / Payment Socket (namespace /escrow) ──────────────────────────────
@@ -53,14 +87,20 @@ export function disconnectEscrowSocket(): void {
 }
 
 // ─── Per-order room helper ────────────────────────────────────────────────────
-// Joins the Socket.io room "order_<orderId>" on the /escrow namespace.
-// Listens for: PAYMENT_LOCKED, PAYMENT_CONFIRMED, ORDER_STATUS_UPDATED
+// Joins the Socket.io room on the /escrow namespace via subscribe:order.
+// Backend broadcasts `escrow:updated` to room `order:<orderId>` with payload `{ orderId, status }`.
 export function joinOrderRoom(orderId: string): Socket {
   const socket = getEscrowSocket();
+  socket.emit('subscribe:order', { orderId });
+  // Also emit join_order for legacy support
   socket.emit('join_order', { orderId });
   return socket;
 }
 
 export function leaveOrderRoom(orderId: string): void {
-  escrowSocket?.emit('leave_order', { orderId });
+  if (escrowSocket) {
+    escrowSocket.emit('unsubscribe:order', { orderId });
+    escrowSocket.emit('leave_order', { orderId });
+  }
 }
+

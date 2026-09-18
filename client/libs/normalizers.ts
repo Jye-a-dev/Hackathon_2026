@@ -2,7 +2,7 @@
 // libs/normalizers.ts — Backend → Frontend shape mapping
 // Zero hardcoded fallback numerics, zero fake data
 // ─────────────────────────────────────────────
-import type { Listing } from '@/types/listing';
+import type { Listing, ListingStatus } from '@/types/listing';
 import type { Order, OrderStatus } from '@/types/order';
 import type { Dispute, DisputeStatus } from '@/types/dispute';
 import type { Conversation, ChatMessage } from '@/types/chat';
@@ -35,6 +35,11 @@ export interface RawListing {
   location?: RawListingLocation | null;
   location_name?: string | null;
   seller_wallet?: string;
+  sellerWallet?: string;
+  seller_id?: string | number;
+  sellerId?: string | number;
+  user_id?: string | number;
+  userId?: string | number;
   seller?: RawListingSeller | null;
   created_at?: string;
   createdAt?: string;
@@ -78,7 +83,7 @@ export function normalizeListing(raw: unknown): Listing {
     images,
     category: r.category ?? 'OTHER',
     condition: r.condition ?? 'GOOD',
-    status: r.status ?? 'ACTIVE',
+    status: (r.status === 'AVAILABLE' ? 'ACTIVE' : (r.status ?? 'ACTIVE')) as ListingStatus,
     location: { district, city },
     seller: {
       id: sellerWallet,
@@ -96,6 +101,9 @@ export function normalizeListing(raw: unknown): Listing {
           ? Number(r.seller.responseTimeMin)
           : undefined,
     },
+    sellerId: r.seller_id ? String(r.seller_id) : (r.sellerId ? String(r.sellerId) : undefined),
+    sellerWallet: r.seller_wallet ?? r.sellerWallet ?? (sellerWallet || undefined),
+    userId: r.user_id ? String(r.user_id) : (r.userId ? String(r.userId) : undefined),
     createdAt: r.created_at ?? r.createdAt ?? new Date().toISOString(),
     viewCount: r.viewCount !== undefined ? Number(r.viewCount) : undefined,
     likeCount: r.likeCount !== undefined ? Number(r.likeCount) : undefined,

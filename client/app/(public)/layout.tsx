@@ -9,11 +9,11 @@ interface PublicLayoutProps {
 
 export default function PublicLayout({ children }: PublicLayoutProps) {
   return (
-    <div className="min-h-screen bg-[#fafafa] text-neutral-900 flex flex-col justify-between selection:bg-emerald-100 selection:text-emerald-900">
+    <div className="w-full max-w-full min-h-screen bg-[#fafafa] text-neutral-900 flex flex-col justify-between selection:bg-emerald-100 selection:text-emerald-900 overflow-x-hidden">
       <PublicNavbar />
-      <div className="flex-1 w-full">
+      <main className="flex-1 w-full max-w-full overflow-x-hidden">
         {children}
-      </div>
+      </main>
       <PublicFooter />
       <MobileBottomNav />
     </div>

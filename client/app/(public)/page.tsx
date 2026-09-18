@@ -9,10 +9,12 @@ import type { ListingCategory } from '@/types/listing';
 
 function FeedLoadingGrid() {
   return (
-    <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-4 lg:gap-5">
-      {Array.from({ length: 8 }).map((_, i) => (
-        <ProductCardSkeleton key={i} />
-      ))}
+    <div className="w-full max-w-full px-4 sm:px-8 lg:px-12 py-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6 w-full">
+        {Array.from({ length: 12 }).map((_, i) => (
+          <ProductCardSkeleton key={i} />
+        ))}
+      </div>
     </div>
   );
 }
@@ -24,9 +26,9 @@ function FeedContent() {
   const search = searchParams.get('search') || undefined;
 
   return (
-    <div className="mx-auto max-w-auto px-4 py-6 sm:px-6 lg:px-8">
-      {/* ── Trust Banner ── */}
-      <div className="relative overflow-hidden rounded-2xl sm:rounded-3xl bg-linear-to-r from-neutral-900 via-neutral-800 to-neutral-900 p-6 sm:p-8 text-white shadow-xl shadow-neutral-900/10 mb-8">
+    <div className="w-full max-w-full px-4 sm:px-8 lg:px-12 py-6">
+      {/* ── Full-Width Hero Trust Banner ── */}
+      <div className="relative overflow-hidden rounded-2xl bg-linear-to-r from-neutral-900 via-neutral-800 to-neutral-900 p-6 sm:p-10 text-white shadow-xl shadow-neutral-900/10 mb-8 w-full">
         {/* Ambient Glow */}
         <div className="pointer-events-none absolute -right-16 -top-16 h-60 w-60 rounded-full bg-emerald-500/25 blur-3xl" />
         <div className="pointer-events-none absolute -left-16 -bottom-16 h-60 w-60 rounded-full bg-teal-500/15 blur-3xl" />

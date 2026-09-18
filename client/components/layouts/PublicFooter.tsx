@@ -5,9 +5,9 @@ import { ShieldCheck, ArrowUpRight, Lock, CheckCircle2 } from 'lucide-react';
 
 export default function PublicFooter() {
   return (
-    <footer className="bg-white border-t border-neutral-200/80 pt-12 pb-24 md:pb-12 text-neutral-600">
-      <div className="mx-auto max-w-7xl px-4 sm:px-6 lg:px-8">
-        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4">
+    <footer className="w-full max-w-full bg-white border-t border-neutral-200/80 px-4 sm:px-8 lg:px-12 py-12 pb-24 md:pb-12 text-neutral-600">
+      <div className="w-full max-w-full">
+        <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-4 w-full">
           
           {/* Column 1: Brand TrustPass & Commitment */}
           <div className="space-y-4">

@@ -1,8 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { useQueryClient } from '@tanstack/react-query';
+import { toast } from 'sonner';
 import {
   ShieldCheck,
   Layers,
@@ -13,12 +15,13 @@ import {
   X,
   LogOut,
   ExternalLink,
-  ShieldAlert,
   Lock,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useCurrentUser } from '@/hooks/useMarketplace';
 import { useAuthStore } from '@/store/useAuthStore';
+import { performFullLogout } from '@/libs/logout';
+
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -48,11 +51,36 @@ const NAV_ITEMS = [
 export default function AdminLayout({ children }: AdminLayoutProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const queryClient = useQueryClient();
   const [mobileDrawerOpen, setMobileDrawerOpen] = useState(false);
   const { data: user, isLoading: userLoading } = useCurrentUser();
-  const { logout } = useAuthStore();
+  const { user: storeUser } = useAuthStore();
 
-  const isAdmin = user?.role === 'ADMIN' || user?.role === 'ARBITER';
+
+  const currentUser = user || storeUser;
+  const isAdmin = currentUser?.role === 'ADMIN' || currentUser?.role === 'ARBITER';
+
+  useEffect(() => {
+    if (!userLoading) {
+      if (!currentUser) {
+        router.replace(`/auth/login?redirect=${encodeURIComponent(pathname)}`);
+      } else if (!isAdmin) {
+        toast.error('Bạn không có quyền truy cập cổng Quản trị viên!');
+        router.replace('/');
+      }
+    }
+  }, [currentUser, userLoading, isAdmin, router, pathname]);
+
+  if (userLoading || !currentUser || !isAdmin) {
+    return (
+      <div className="min-h-screen bg-neutral-950 flex flex-col items-center justify-center text-white">
+        <div className="flex items-center gap-3">
+          <div className="h-6 w-6 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin" />
+          <span className="text-sm font-semibold text-neutral-300">Đang kiểm tra quyền quản trị...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-neutral-950 text-neutral-100 flex flex-col lg:flex-row antialiased">
@@ -174,8 +202,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
             <button
               type="button"
               onClick={() => {
-                logout();
-                router.push('/auth/login');
+                performFullLogout(queryClient);
               }}
               className="flex items-center gap-1 text-[11px] text-rose-400 hover:text-rose-300 transition-colors"
             >
@@ -196,16 +223,6 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
 
       {/* ── Main Content Area ── */}
       <div className="flex-1 min-w-0 flex flex-col">
-        {!userLoading && user && !isAdmin && (
-          <div className="m-4 p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-300 flex items-center gap-3 text-xs">
-            <ShieldAlert className="h-5 w-5 shrink-0" />
-            <div>
-              <span className="font-bold">Cảnh báo phân quyền: </span>
-              Tài khoản của bạn hiện là &apos;{user.role}&apos;. Chỉ tài khoản ADMIN hoặc ARBITER mới có quyền thực thi lệnh trọng tài on-chain.
-            </div>
-          </div>
-        )}
-
         <main className="flex-1 p-4 sm:p-6 lg:p-8 max-w-7xl w-full mx-auto">
           {children}
         </main>

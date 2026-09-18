@@ -15,7 +15,10 @@ import type { Socket } from 'socket.io-client';
 import { Money } from '@/domain/value-objects/Money';
 import { getChatSocket } from '@/libs/socket';
 import { chatApi, listingsApi } from '@/libs/api';
+import { useCurrentUser } from '@/hooks/useMarketplace';
 import { useAuthStore } from '@/store/useAuthStore';
+import { normalizeChatMessage } from '@/libs/normalizers';
+import { toast } from 'sonner';
 import type { ChatMessage } from '@/types/chat';
 import type { Listing } from '@/types/listing';
 
@@ -27,9 +30,17 @@ function DirectChatContent({
   const resolvedParams = use(params);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { user } = useAuthStore();
 
-  const currentWallet = user?.id ?? '';
+  const { data: currentUser } = useCurrentUser();
+  const { user: storeUser } = useAuthStore();
+  const activeUser = currentUser || storeUser;
+  const rawWallet =
+    activeUser?.wallet_address ||
+    activeUser?.wallet ||
+    activeUser?.id ||
+    '';
+  const currentWallet = rawWallet !== 'me' ? rawWallet : '';
+
   const listingId = searchParams.get('listingId');
   const sellerParam = searchParams.get('seller');
 
@@ -38,15 +49,18 @@ function DirectChatContent({
   const [loading, setLoading] = useState(true);
   const [inputText, setInputText] = useState('');
   const [isTyping, setIsTyping] = useState(false);
-  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const messageContainerRef = useRef<HTMLDivElement | null>(null);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const scrollToBottom = (smooth = true) => {
+    if (!messageContainerRef.current) return;
+    const { scrollHeight, clientHeight } = messageContainerRef.current;
+    messageContainerRef.current.scrollTo({
+      top: scrollHeight - clientHeight,
+      behavior: smooth ? 'smooth' : 'auto',
+    });
   };
 
-  useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
 
   useEffect(() => {
     async function initChat() {
@@ -59,6 +73,7 @@ function DirectChatContent({
 
         const msgs = await chatApi.getMessages(resolvedParams.conversationId);
         setMessages(msgs);
+        requestAnimationFrame(() => scrollToBottom(false));
       } catch (err) {
         console.warn('Chat init error:', err);
       } finally {
@@ -74,23 +89,42 @@ function DirectChatContent({
     try {
       socket = getChatSocket();
       socket.connect();
-      socket.emit('join_conversation', {
-        conversationId: resolvedParams.conversationId,
-      });
 
-      const handleNewMessage = (msg: ChatMessage) => {
-        setMessages((prev) => {
-          if (prev.some((m) => m.id === msg.id)) return prev;
-          return [...prev, msg];
-        });
+      const joinPayload = { conversationId: resolvedParams.conversationId };
+      socket.emit('join_room', joinPayload);
+      socket.emit('join_conversation', joinPayload);
+
+      const handleIncomingMessage = (rawMsg: unknown) => {
+        const msg = normalizeChatMessage(rawMsg);
+        if (String(msg.conversationId) === String(resolvedParams.conversationId)) {
+          setMessages((prev) => {
+            if (prev.some((m) => m.id === msg.id)) return prev;
+            return [...prev, msg];
+          });
+          requestAnimationFrame(() => scrollToBottom(true));
+        }
       };
 
-      socket.on('receive_message', handleNewMessage);
-      socket.on('new_message', handleNewMessage);
+      socket.on('new_message', handleIncomingMessage);
+      socket.on('receive_message', handleIncomingMessage);
 
       socket.on('partner_typing', () => {
         setIsTyping(true);
-        setTimeout(() => setIsTyping(false), 3000);
+        if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = setTimeout(() => setIsTyping(false), 3000);
+      });
+
+      socket.on('user_typing', (data: { conversationId: string; senderWallet: string; isTyping: boolean }) => {
+        if (
+          String(data.conversationId) === String(resolvedParams.conversationId) &&
+          data.senderWallet?.toLowerCase() !== currentWallet.toLowerCase()
+        ) {
+          setIsTyping(data.isTyping);
+          if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+          if (data.isTyping) {
+            typingTimeoutRef.current = setTimeout(() => setIsTyping(false), 3000);
+          }
+        }
       });
     } catch (e) {
       console.warn('Socket chat connection error:', e);
@@ -98,41 +132,93 @@ function DirectChatContent({
 
     return () => {
       if (socket) {
-        socket.off('receive_message');
+        socket.emit('leave_room', { conversationId: resolvedParams.conversationId });
+        socket.emit('leave_conversation', { conversationId: resolvedParams.conversationId });
         socket.off('new_message');
+        socket.off('receive_message');
         socket.off('partner_typing');
-        socket.disconnect();
+        socket.off('user_typing');
+      }
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
       }
     };
-  }, [resolvedParams.conversationId]);
+  }, [resolvedParams.conversationId, currentWallet]);
+
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setInputText(e.target.value);
+    if (!currentWallet) return;
+
+    try {
+      const socket = getChatSocket();
+      if (socket.connected) {
+        socket.emit('typing', {
+          conversationId: resolvedParams.conversationId,
+          senderWallet: currentWallet,
+          isTyping: true,
+        });
+      }
+    } catch {
+      // ignore
+    }
+  };
 
   const handleSendMessage = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!inputText.trim()) return;
+    if (!inputText.trim() || !currentWallet) return;
 
     const content = inputText.trim();
     setInputText('');
 
     try {
-      const savedMsg = await chatApi.sendMessage(
-        resolvedParams.conversationId,
-        currentWallet,
-        content,
-      );
-      setMessages((prev) => [...prev, savedMsg]);
-
       const socket = getChatSocket();
-      socket.emit('send_message', savedMsg);
+      if (socket.connected) {
+        socket.emit('typing', {
+          conversationId: resolvedParams.conversationId,
+          senderWallet: currentWallet,
+          isTyping: false,
+        });
+      }
     } catch {
-      // Optimistic message
-      const fallbackMsg: ChatMessage = {
-        id: `msg-${resolvedParams.conversationId}-${messages.length + 1}`,
-        conversationId: resolvedParams.conversationId,
-        senderWallet: currentWallet,
-        content,
-        createdAt: new Date().toISOString(),
-      };
-      setMessages((prev) => [...prev, fallbackMsg]);
+      // ignore
+    }
+
+    const payload = {
+      conversationId: resolvedParams.conversationId,
+      senderId: currentWallet,
+      senderWallet: currentWallet,
+      content,
+      listingId: listing?.id,
+    };
+
+    try {
+      const socket = getChatSocket();
+      if (socket.connected) {
+        socket.emit('send_message', payload, (res: unknown) => {
+          if (res) {
+            const saved = normalizeChatMessage(res);
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === saved.id)) return prev;
+              return [...prev, saved];
+            });
+            requestAnimationFrame(() => scrollToBottom(true));
+          }
+        });
+      } else {
+        const savedMsg = await chatApi.sendMessage(
+          resolvedParams.conversationId,
+          currentWallet,
+          content,
+        );
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === savedMsg.id)) return prev;
+          return [...prev, savedMsg];
+        });
+        requestAnimationFrame(() => scrollToBottom(true));
+      }
+
+    } catch {
+      toast.error('Không thể gửi tin nhắn. Vui lòng kiểm tra kết nối.');
     }
   };
 
@@ -220,7 +306,10 @@ function DirectChatContent({
       )}
 
       {/* Message List */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-3 max-w-4xl mx-auto w-full">
+      <div
+        ref={messageContainerRef}
+        className="flex-1 overflow-y-auto p-4 space-y-4 max-w-4xl mx-auto w-full no-scrollbar"
+      >
         {loading ? (
           <div className="p-8 text-center text-xs text-neutral-400">
             Đang tải lịch sử trò chuyện...
@@ -233,7 +322,8 @@ function DirectChatContent({
           messages.map((msg) => {
             const isMe =
               Boolean(currentWallet) &&
-              msg.senderWallet.toLowerCase() === currentWallet.toLowerCase();
+              (msg.senderWallet.toLowerCase() === currentWallet.toLowerCase() ||
+               Boolean(activeUser?.id && msg.senderWallet.toLowerCase() === activeUser.id.toLowerCase()));
 
             return (
               <div
@@ -268,8 +358,6 @@ function DirectChatContent({
             <span className="text-[10px]">Đối tác đang nhập tin nhắn...</span>
           </div>
         )}
-
-        <div ref={messagesEndRef} />
       </div>
 
       {/* Input Bar */}
@@ -281,7 +369,7 @@ function DirectChatContent({
           <input
             type="text"
             value={inputText}
-            onChange={(e) => setInputText(e.target.value)}
+            onChange={handleInputChange}
             placeholder="Nhập tin nhắn..."
             className="flex-1 rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-xs text-neutral-900 placeholder-neutral-400 focus:border-neutral-400 focus:bg-white focus:outline-hidden"
           />

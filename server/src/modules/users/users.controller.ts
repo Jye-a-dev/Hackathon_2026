@@ -12,8 +12,19 @@ import { UsersService } from './users.service';
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
 
+  @Get('me')
+  async getMe() {
+    const user =
+      (await this.usersService.findById('1')) ||
+      (await this.usersService.findByWallet('demo_wallet_abc123'));
+    return user || this.usersService.findByWallet('me');
+  }
+
   @Get(':wallet')
   async getProfile(@Param('wallet') wallet: string) {
+    if (wallet === 'me') {
+      return this.getMe();
+    }
     const user = await this.usersService.findByWallet(wallet);
     if (!user) {
       throw new NotFoundException(`User with wallet ${wallet} not found`);

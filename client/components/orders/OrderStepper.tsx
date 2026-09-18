@@ -60,8 +60,8 @@ export default function OrderStepper({ status }: OrderStepperProps) {
       <div className="flex items-center justify-between">
         {steps.map((step, idx) => {
           const Icon = step.icon;
-          const isDone = currentStep > idx + 1;
-          const isCurrent = currentStep === idx + 1;
+          const isDone = currentStep > idx + 1 || (currentStep === 4 && idx === 3);
+          const isCurrent = currentStep === idx + 1 && currentStep < 4;
           const isDeliveredPulse = isCurrent && step.key === 'DELIVERED';
 
           return (

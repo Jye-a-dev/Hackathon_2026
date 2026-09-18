@@ -27,11 +27,15 @@ export interface Order {
   createdAt: string;
   disputeReason?: string;
   disputeEvidenceUrls?: string[];
+  vaultPda?: string;
+  escrowAddress?: string;
 }
 
 export interface CreateOrderPayload {
+  orderId?: string;
   listingId: string;
   buyerWallet: string;
   sellerWallet: string;
   amountVnd: number;
 }
+

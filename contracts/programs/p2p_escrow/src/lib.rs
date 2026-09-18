@@ -8,7 +8,7 @@ pub mod state;
 
 use instructions::*;
 
-declare_id!("Eh9UPtnvbD3SX7NkNMk9BUKX6marhVMHWhdQ8Gus557a");
+declare_id!("HxRDoZFg52q9R5y1VGTSPEMqJjyW3WNgnxsz5bN8ooXk");
 
 #[program]
 pub mod p2p_escrow {

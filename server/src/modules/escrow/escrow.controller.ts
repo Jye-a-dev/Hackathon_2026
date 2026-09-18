@@ -31,7 +31,7 @@ export class EscrowController {
     return {
       programId:
         process.env.SOLANA_PROGRAM_ID ||
-        'Eh9UPtnvbD3SX7NkNMk9BUKX6marhVMHWhdQ8Gus557a',
+        'HxRDoZFg52q9R5y1VGTSPEMqJjyW3WNgnxsz5bN8ooXk',
       arbiterPublicKey: this.solanaService.getArbiterPublicKey().toBase58(),
       solanaDisabled: this.solanaService.isSolanaDisabled(),
       rpcUrl: process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com',

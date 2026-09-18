@@ -1,4 +1,4 @@
-import { Injectable, NotFoundException, Logger } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 
 export interface UserProfile {
@@ -36,6 +36,9 @@ export class UsersService {
   constructor(private readonly db: DatabaseService) {}
 
   async findByWallet(walletAddress: string): Promise<UserProfile | null> {
+    if (walletAddress === 'me') {
+      return (await this.findById('1')) || MOCK_USER;
+    }
     try {
       const res = await this.db.query<UserProfile>(
         'SELECT * FROM users WHERE wallet_address = $1 LIMIT 1;',

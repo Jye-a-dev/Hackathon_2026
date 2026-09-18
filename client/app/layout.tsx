@@ -10,8 +10,8 @@ export const metadata: Metadata = {
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="vi">
-      <body className="antialiased selection:bg-emerald-500 selection:text-white">
+    <html lang="vi" className="w-full min-h-screen overflow-x-hidden p-0 m-0">
+      <body className="w-full min-h-screen overflow-x-hidden p-0 m-0 antialiased selection:bg-emerald-500 selection:text-white">
         <Providers>{children}</Providers>
       </body>
     </html>

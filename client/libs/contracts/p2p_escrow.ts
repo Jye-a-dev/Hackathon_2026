@@ -3,7 +3,7 @@
  * _This file is generated._
  */
 export type P2pEscrow = {
-  address: "Eh9UPtnvbD3SX7NkNMk9BUKX6marhVMHWhdQ8Gus557a";
+  address: "HxRDoZFg52q9R5y1VGTSPEMqJjyW3WNgnxsz5bN8ooXk";
   metadata: {
     name: "p2p_escrow";
     version: "0.2.0";

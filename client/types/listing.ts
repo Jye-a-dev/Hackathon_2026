@@ -1,7 +1,7 @@
 // ─────────────────────────────────────────────
 // types/listing.ts
 // ─────────────────────────────────────────────
-export type ListingStatus = 'ACTIVE' | 'SOLD' | 'RESERVED' | 'INACTIVE';
+export type ListingStatus = 'ACTIVE' | 'AVAILABLE' | 'SOLD' | 'RESERVED' | 'INACTIVE';
 export type ListingCondition = 'NEW' | 'LIKE_NEW' | 'GOOD' | 'FAIR';
 export type ListingCategory =
   | 'FASHION'
@@ -37,6 +37,9 @@ export interface Listing {
     city: string;         // Tỉnh/Thành phố
   };
   seller: SellerProfile;
+  sellerId?: string;
+  sellerWallet?: string;
+  userId?: string;
   createdAt: string;      // ISO date string
   viewCount?: number;
   likeCount?: number;

@@ -1,0 +1,11 @@
+[build]
+  base = "client"
+  command = "npm run build"
+  publish = ".next"
+
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
+
+[build.environment]
+  SECRETS_SCAN_ENABLED = "false"
+  NODE_VERSION = "20"

@@ -1,7 +1,15 @@
 import { Money } from '../value-objects/Money';
 import { EscrowTimer } from '../value-objects/EscrowTimer';
 
-export type EscrowStatus = 'LOCKED' | 'DELIVERED' | 'COMPLETED' | 'DISPUTED' | 'REFUNDED' | 'CANCELLED';
+export type EscrowStatus =
+  | 'PENDING_PAYMENT'
+  | 'LOCKED'
+  | 'SHIPPED'
+  | 'DELIVERED'
+  | 'COMPLETED'
+  | 'DISPUTED'
+  | 'REFUNDED'
+  | 'CANCELLED';
 
 export class EscrowOrder {
   constructor(
@@ -32,7 +40,6 @@ export class EscrowOrder {
   }
 
   public isProtectedByEscrow(): boolean {
-    return ['LOCKED', 'DELIVERED', 'DISPUTED'].includes(this.status);
+    return ['LOCKED', 'SHIPPED', 'DELIVERED', 'DISPUTED'].includes(this.status);
   }
 }
-

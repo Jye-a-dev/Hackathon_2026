@@ -4,11 +4,17 @@ import {
   OnModuleInit,
   OnModuleDestroy,
 } from '@nestjs/common';
-import { Connection, Keypair, PublicKey, SystemProgram } from '@solana/web3.js';
-import * as anchor from '@coral-xyz/anchor';
-import { Program, AnchorProvider, Wallet, BN } from '@coral-xyz/anchor';
+import {
+  Connection,
+  Keypair,
+  PublicKey,
+  SystemProgram,
+  LAMPORTS_PER_SOL,
+} from '@solana/web3.js';
+import { Program, AnchorProvider, Wallet, BN, Idl } from '@coral-xyz/anchor';
+import * as fs from 'fs';
+import * as path from 'path';
 import bs58 from 'bs58';
-import { P2P_ESCROW_IDL } from './idl/p2p_escrow.idl';
 import { ESCROW_SEED, VAULT_SEED } from './solana.constants';
 import {
   DisputeDecision,
@@ -20,30 +26,34 @@ import {
 @Injectable()
 export class SolanaService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(SolanaService.name);
-  private connection: Connection;
-  private arbiterKeypair: Keypair;
-  private program: Program;
-  private programId: PublicKey;
+  public connection!: Connection;
+  public arbiterKeypair!: Keypair;
+  public program!: Program;
+  public programId!: PublicKey;
   private solanaDisabled =
     process.env.DISABLE_SOLANA === 'true' ||
     process.env.DISABLE_SOLANA_INIT === 'true';
   private listenerIds: number[] = [];
 
-  onModuleInit() {
-    this.initSolana();
+  async onModuleInit(): Promise<void> {
+    // Cho phép bypass khi chạy local/mock mà không có RPC
+    if (this.solanaDisabled) {
+      this.logger.warn(
+        'Solana initialization bypassed via environment configuration (DISABLE_SOLANA / DISABLE_SOLANA_INIT).',
+      );
+      return;
+    }
+    await this.initSolana();
   }
 
-  onModuleDestroy() {
+  onModuleDestroy(): void {
     this.cleanupListeners();
   }
 
-  private initSolana() {
+  public async initSolana(): Promise<void> {
     const rpcUrl =
       process.env.SOLANA_RPC_URL || 'https://api.devnet.solana.com';
     const wsUrl = process.env.SOLANA_WS_URL || 'wss://api.devnet.solana.com';
-    const programIdStr =
-      process.env.SOLANA_PROGRAM_ID ||
-      'Eh9UPtnvbD3SX7NkNMk9BUKX6marhVMHWhdQ8Gus557a';
 
     this.logger.log(
       `Initializing Solana connection: RPC=${rpcUrl}, WS=${wsUrl}`,
@@ -55,7 +65,7 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
         wsEndpoint: wsUrl,
       });
 
-      // Parse Arbiter Keypair
+      // 1. Khởi tạo Arbiter Keypair
       this.arbiterKeypair = this.parseArbiterKeypair(
         process.env.ARBITER_PRIVATE_KEY,
       );
@@ -63,32 +73,75 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
         `Arbiter Wallet Public Key: ${this.arbiterKeypair.publicKey.toBase58()}`,
       );
 
+      // 2. Runtime IDL Injection & Account Schema Verification
+      const candidatePaths = [
+        path.resolve(__dirname, '../escrow/p2p_escrow.json'),
+        path.resolve(__dirname, './idl/p2p_escrow.json'),
+        path.resolve(process.cwd(), 'src/modules/escrow/p2p_escrow.json'),
+      ];
+
+      const idlPath = candidatePaths.find((p) => fs.existsSync(p));
+      if (!idlPath) {
+        throw new Error(
+          `IDL file not found at candidates [${candidatePaths.join(', ')}]. Run orchestration script first!`,
+        );
+      }
+
+      const idl: Idl = JSON.parse(fs.readFileSync(idlPath, 'utf8')) as Idl;
+      const idlAddress =
+        typeof (idl as any).address === 'string'
+          ? ((idl as any).address as string)
+          : '';
+      const programIdStr: string =
+        process.env.SOLANA_PROGRAM_ID ||
+        idlAddress ||
+        'Eh9UPtnvbD3SX7NkNMk9BUKX6marhVMHWhdQ8Gus557a';
+
+      this.programId = new PublicKey(programIdStr);
+
+      // Anchor 0.30+ uses idl.address inside Program constructor
+      const runtimeIdl = {
+        ...idl,
+        address: this.programId.toBase58(),
+      };
+
       const wallet = new Wallet(this.arbiterKeypair);
       const provider = new AnchorProvider(this.connection, wallet, {
         commitment: 'confirmed',
         preflightCommitment: 'confirmed',
       });
 
-      const programId = new PublicKey(programIdStr);
-      this.programId = programId;
-
-      if (this.solanaDisabled) {
-        this.logger.warn(
-          'Solana integration is disabled. The server will run without calling the escrow contract.',
-        );
-        return;
-      }
-
-      this.program = new Program(P2P_ESCROW_IDL, provider);
-
+      this.program = new Program(runtimeIdl, provider);
+      this.solanaDisabled = false;
       this.logger.log(
-        `Solana Program initialized successfully for Program ID: ${programId.toBase58()}`,
+        `Initialized Anchor Program at: ${this.programId.toBase58()} from ${idlPath}`,
       );
+
+      // 3. Balance verification
+      await this.assertArbiterBalance();
     } catch (err: any) {
       this.logger.warn(
         `Solana initialization bypassed / failed: ${err.message}. Entering mock bypass mode.`,
       );
       this.solanaDisabled = true;
+    }
+  }
+
+  public async assertArbiterBalance(
+    minRequiredLamports: number = 0.05 * LAMPORTS_PER_SOL,
+  ): Promise<void> {
+    if (this.solanaDisabled || !this.arbiterKeypair || !this.connection) return;
+    try {
+      const balance = await this.connection.getBalance(
+        this.arbiterKeypair.publicKey,
+      );
+      if (balance < minRequiredLamports) {
+        this.logger.warn(
+          `Arbiter wallet balance is low: ${balance / LAMPORTS_PER_SOL} SOL < ${minRequiredLamports / LAMPORTS_PER_SOL} SOL`,
+        );
+      }
+    } catch (err: any) {
+      this.logger.warn(`Could not verify arbiter balance: ${err.message}`);
     }
   }
 
@@ -103,14 +156,14 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
     try {
       const trimmed = keyString.trim();
       if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
-        const bytes = JSON.parse(trimmed);
+        const bytes: number[] = JSON.parse(trimmed) as number[];
         return Keypair.fromSecretKey(Uint8Array.from(bytes));
       }
 
       // Try base58 decode
       const decodeFn = (bs58 as any).decode || (bs58 as any).default?.decode;
       if (typeof decodeFn === 'function') {
-        const decoded = decodeFn(trimmed);
+        const decoded: Uint8Array = decodeFn(trimmed) as Uint8Array;
         return Keypair.fromSecretKey(Uint8Array.from(decoded));
       }
 
@@ -146,11 +199,9 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
     orderId: string | number | bigint | BN,
   ): [PublicKey, number] {
     const bnOrderId = this.toBN(orderId);
-    const orderIdBuffer = bnOrderId.toArrayLike(Buffer, 'le', 8);
-    return PublicKey.findProgramAddressSync(
-      [ESCROW_SEED, orderIdBuffer],
-      this.programId,
-    );
+    const orderIdBuffer: Buffer = Buffer.from(bnOrderId.toArray('le', 8));
+    const seeds: Buffer[] = [ESCROW_SEED, orderIdBuffer];
+    return PublicKey.findProgramAddressSync(seeds, this.programId);
   }
 
   /**
@@ -160,10 +211,8 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
     const pId =
       this.programId ||
       (this.program ? this.program.programId : PublicKey.default);
-    return PublicKey.findProgramAddressSync(
-      [VAULT_SEED, escrowPda.toBuffer()],
-      pId,
-    );
+    const seeds: Buffer[] = [VAULT_SEED, escrowPda.toBuffer()];
+    return PublicKey.findProgramAddressSync(seeds, pId);
   }
 
   /**
@@ -232,6 +281,7 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
       return mockSig;
     }
 
+    await this.assertArbiterBalance();
     const { escrowPda } = this.calculatePdas(orderId);
     this.logger.log(
       `Executing markDelivered for orderId: ${orderId}, Escrow PDA: ${escrowPda}`,
@@ -272,6 +322,7 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
       };
     }
 
+    await this.assertArbiterBalance();
     const { escrowPda, vaultPda } = this.calculatePdas(orderId);
     const account = await this.fetchEscrowAccount(orderId);
 
@@ -337,6 +388,7 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
       return mockSig;
     }
 
+    await this.assertArbiterBalance();
     const { escrowPda, vaultPda } = this.calculatePdas(orderId);
     const account = await this.fetchEscrowAccount(orderId);
 
@@ -383,6 +435,7 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
       };
     }
 
+    await this.assertArbiterBalance();
     const { escrowPda, vaultPda } = this.calculatePdas(orderId);
     const account = await this.fetchEscrowAccount(orderId);
 
@@ -441,6 +494,7 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
       return mockSignature;
     }
 
+    await this.assertArbiterBalance();
     const { escrowPda, vaultPda } = this.calculatePdas(orderId);
     const bnOrderId = this.toBN(orderId);
     const bnAmount = this.toBN(amountLamports);
@@ -479,7 +533,7 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
       signature?: string,
     ) => Promise<void> | void,
   ) {
-    if (this.solanaDisabled) {
+    if (this.solanaDisabled || !this.program) {
       this.logger.warn(
         'Skipping Anchor event subscriptions because Solana is disabled.',
       );
@@ -538,14 +592,6 @@ export class SolanaService implements OnModuleInit, OnModuleDestroy {
       }
     }
     this.listenerIds = [];
-  }
-
-  private ensureSolanaEnabled() {
-    if (this.solanaDisabled) {
-      throw new Error(
-        'Solana integration is disabled. Enable DISABLE_SOLANA=false before using on-chain escrow actions.',
-      );
-    }
   }
 
   private toBN(val: string | number | bigint | BN): BN {

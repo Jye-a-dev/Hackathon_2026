@@ -1,14 +1,34 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, Suspense } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { usePathname, useRouter } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import {
-  Search, X, Bell, Plus, ChevronDown, MapPin,
-  ShieldCheck, Gavel, MessageCircle, ShoppingBag, Menu,
-  ArrowLeft, Sparkles, Shirt, Smartphone, Footprints,
-  Camera, Watch, Headphones, Star, LogOut, User,
+  Search,
+  X,
+  Bell,
+  Heart,
+  Plus,
+  ChevronDown,
+  MapPin,
+  ShieldCheck,
+  Gavel,
+  MessageCircle,
+  ShoppingBag,
+  Menu,
+  ArrowLeft,
+  Sparkles,
+  Shirt,
+  Smartphone,
+  Footprints,
+  Camera,
+  Watch,
+  Headphones,
+  Star,
+  LogOut,
+  User,
+  ShieldAlert,
 } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useAuthStore } from '@/store/useAuthStore';
@@ -23,19 +43,19 @@ interface CategoryItem {
 }
 
 const CATEGORIES: CategoryItem[] = [
-  { label: 'Tất cả',     value: 'ALL',         Icon: Sparkles },
-  { label: 'Điện tử',   value: 'ELECTRONICS', Icon: Smartphone },
-  { label: 'Máy ảnh',   value: 'CAMERA',      Icon: Camera },
-  { label: 'Sneaker',   value: 'SNEAKERS',    Icon: Footprints },
-  { label: 'Thời trang', value: 'FASHION',    Icon: Shirt },
-  { label: 'Phụ kiện',  value: 'ACCESSORIES', Icon: Watch },
-  { label: 'Tai nghe',  value: 'OTHER',       Icon: Headphones },
+  { label: 'Tất cả', value: 'ALL', Icon: Sparkles },
+  { label: 'Điện tử', value: 'ELECTRONICS', Icon: Smartphone },
+  { label: 'Máy ảnh', value: 'CAMERA', Icon: Camera },
+  { label: 'Sneakers', value: 'SNEAKERS', Icon: Footprints },
+  { label: 'Thời trang', value: 'FASHION', Icon: Shirt },
+  { label: 'Phụ kiện', value: 'ACCESSORIES', Icon: Watch },
+  { label: 'Âm thanh', value: 'OTHER', Icon: Headphones },
 ];
 
 const RADII = [
   { label: 'Mọi nơi', value: 0 },
-  { label: '< 5km',   value: 5 },
-  { label: '< 10km',  value: 10 },
+  { label: '< 5km', value: 5 },
+  { label: '< 10km', value: 10 },
 ];
 
 function OmniSearchBar({
@@ -59,6 +79,18 @@ function OmniSearchBar({
     const t = setTimeout(() => setDebouncedVal(val), 250);
     return () => clearTimeout(t);
   }, [val]);
+
+  // Global shortcut CMD+K / CTRL+K
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+        e.preventDefault();
+        ref.current?.focus();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
 
   const { data: results, isFetching } = useSearchListings(debouncedVal);
   const showDropdown = focused && val.trim().length >= 2 && !isDismissed;
@@ -87,7 +119,7 @@ function OmniSearchBar({
   };
 
   return (
-    <div className={clsx('relative', className)}>
+    <div className={clsx('relative w-full max-w-md', className)}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -100,7 +132,7 @@ function OmniSearchBar({
           ref={ref}
           type="search"
           autoFocus={autoFocus}
-          placeholder="Tìm sản phẩm kiểm định Ký quỹ..."
+          placeholder="Tìm iPhone, máy ảnh, sneaker, vintage..."
           value={val}
           onChange={(e) => {
             setVal(e.target.value);
@@ -135,7 +167,7 @@ function OmniSearchBar({
         </div>
       </form>
 
-      {/* Live Dropdown */}
+      {/* Live Search Dropdown */}
       {showDropdown && (
         <div
           ref={dropdownRef}
@@ -207,7 +239,7 @@ function OmniSearchBar({
   );
 }
 
-function UserProfileMenu() {
+function UserProfilePill() {
   const { logout, isLoggedIn } = useAuthStore();
   const { data: user, isLoading } = useCurrentUser();
   const [open, setOpen] = useState(false);
@@ -227,7 +259,8 @@ function UserProfileMenu() {
 
   const name = user?.username ?? 'Tài khoản';
   const avatar = user?.avatarUrl;
-  const rating = user?.rating;
+  const rating = user?.rating ?? 5.0;
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'ARBITER';
 
   return (
     <div className="relative">
@@ -249,48 +282,72 @@ function UserProfileMenu() {
           <span className="max-w-20 truncate text-xs font-bold text-neutral-800 leading-tight">
             {isLoading ? '…' : name}
           </span>
-          {rating !== undefined && (
-            <span className="flex items-center gap-0.5 text-[10px] text-amber-500 leading-tight font-semibold">
-              <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
-              {rating.toFixed(1)}
-            </span>
-          )}
+          <span className="flex items-center gap-0.5 text-[10px] text-amber-500 leading-tight font-semibold">
+            <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
+            {rating.toFixed(1)}
+          </span>
         </div>
 
-        <ChevronDown className={clsx('hidden h-3 w-3 text-neutral-400 transition-transform sm:block', open && 'rotate-180')} />
+        <ChevronDown
+          className={clsx('hidden h-3 w-3 text-neutral-400 transition-transform sm:block', open && 'rotate-180')}
+        />
       </button>
 
       {open && (
         <>
           <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
-          <div className="absolute right-0 top-full z-20 mt-2 w-52 overflow-hidden rounded-2xl border border-neutral-100 bg-white py-1.5 shadow-xl shadow-neutral-900/10">
+          <div className="absolute right-0 top-full z-20 mt-2 w-56 overflow-hidden rounded-2xl border border-neutral-100 bg-white py-1.5 shadow-xl shadow-neutral-900/10">
             {user && (
-              <div className="flex items-center gap-2.5 border-b border-neutral-100 px-4 py-3">
-                <div className="flex-1 min-w-0">
-                  <p className="truncate text-xs font-bold text-neutral-900">{name}</p>
-                  <p className="truncate text-[10px] text-neutral-400">{user.email ?? user.role}</p>
-                </div>
+              <div className="border-b border-neutral-100 px-4 py-3">
+                <p className="truncate text-xs font-bold text-neutral-900">{name}</p>
+                <p className="truncate text-[10px] text-neutral-400">{user.email ?? user.role}</p>
               </div>
             )}
 
-            {[
-              ['Hồ sơ của tôi', '/profile'],
-              ['Đơn hàng ký quỹ', '/orders'],
-              ['Tin đã đăng', '/sell'],
-            ].map(([label, href]) => (
+            <div className="py-1">
               <Link
-                key={href}
-                href={href}
+                href="/user/dashboard"
                 onClick={() => setOpen(false)}
-                className="block px-4 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 hover:text-neutral-900"
+                className="flex items-center gap-2 px-4 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 hover:text-neutral-900"
               >
-                {label}
+                <User className="h-3.5 w-3.5 text-neutral-500" />
+                <span>Hồ sơ & Tổng quan</span>
               </Link>
-            ))}
+
+              <Link
+                href="/user/orders"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 px-4 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 hover:text-neutral-900"
+              >
+                <ShoppingBag className="h-3.5 w-3.5 text-neutral-500" />
+                <span>Đơn mua & Ký quỹ</span>
+              </Link>
+
+              <Link
+                href="/user/sales"
+                onClick={() => setOpen(false)}
+                className="flex items-center gap-2 px-4 py-2 text-xs font-medium text-neutral-700 transition hover:bg-neutral-50 hover:text-neutral-900"
+              >
+                <Sparkles className="h-3.5 w-3.5 text-neutral-500" />
+                <span>Đơn bán & Doanh thu</span>
+              </Link>
+
+              {isAdmin && (
+                <Link
+                  href="/admin/escrow"
+                  onClick={() => setOpen(false)}
+                  className="flex items-center gap-2 border-t border-neutral-100 bg-emerald-50/60 px-4 py-2 text-xs font-semibold text-emerald-800 transition hover:bg-emerald-100/60"
+                >
+                  <ShieldAlert className="h-3.5 w-3.5 text-emerald-600" />
+                  <span>Quản trị cược & Vaults (Admin)</span>
+                </Link>
+              )}
+            </div>
 
             <div className="my-1 border-t border-neutral-100" />
             <button
               onClick={() => {
+                setOpen(false);
                 logout();
                 router.push('/auth/login');
               }}
@@ -314,48 +371,86 @@ export interface PublicNavbarProps {
   showCategoryBar?: boolean;
 }
 
-export default function PublicNavbar({
+function PublicNavbarContent({
   activeCategory: extCat,
   activeRadius: extRadius,
   onCategoryChange,
   onRadiusChange,
-  showCategoryBar = true,
+  showCategoryBar,
 }: PublicNavbarProps) {
   const pathname = usePathname();
-  const [localCat, setLocalCat] = useState<ListingCategory | 'ALL'>('ALL');
-  const [localRadius, setLocalRadius] = useState(0);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+
+  // Determine active category and radius from props or URL
+  const queryCat = (searchParams.get('category') as ListingCategory | 'ALL') || 'ALL';
+  const queryRadius = Number(searchParams.get('radius') || 0);
+
+  const [localCat, setLocalCat] = useState<ListingCategory | 'ALL'>(extCat ?? queryCat);
+  const [localRadius, setLocalRadius] = useState<number>(extRadius ?? queryRadius);
   const [mobileSearch, setMobileSearch] = useState(false);
   const [mobileMenu, setMobileMenu] = useState(false);
+
+  // Sync state if URL search params change
+  useEffect(() => {
+    if (extCat === undefined) setLocalCat(queryCat);
+  }, [extCat, queryCat]);
+
+  useEffect(() => {
+    if (extRadius === undefined) setLocalRadius(queryRadius);
+  }, [extRadius, queryRadius]);
 
   const activeCat = extCat ?? localCat;
   const activeRadius = extRadius ?? localRadius;
 
-  const handleCat = useCallback(
+  // Auto show category bar on homepage if not explicitly set
+  const isHomePage = pathname === '/';
+  const shouldShowCategoryBar = showCategoryBar !== undefined ? showCategoryBar : isHomePage;
+
+  const handleCatSelect = useCallback(
     (c: ListingCategory | 'ALL') => {
       setLocalCat(c);
       onCategoryChange?.(c);
+      if (isHomePage) {
+        const params = new URLSearchParams(searchParams.toString());
+        if (c === 'ALL') {
+          params.delete('category');
+        } else {
+          params.set('category', c);
+        }
+        router.push(`/?${params.toString()}`);
+      } else {
+        router.push(c === 'ALL' ? '/' : `/?category=${c}`);
+      }
     },
-    [onCategoryChange],
+    [onCategoryChange, isHomePage, router, searchParams],
   );
 
-  const handleRadius = useCallback(
+  const handleRadiusSelect = useCallback(
     (km: number) => {
       setLocalRadius(km);
       onRadiusChange?.(km);
+      if (isHomePage) {
+        const params = new URLSearchParams(searchParams.toString());
+        if (km === 0) {
+          params.delete('radius');
+        } else {
+          params.set('radius', String(km));
+        }
+        router.push(`/?${params.toString()}`);
+      }
     },
-    [onRadiusChange],
+    [onRadiusChange, isHomePage, router, searchParams],
   );
 
   return (
     <header className="sticky top-0 z-40 w-full bg-white/85 backdrop-blur-xl border-b border-neutral-200/80">
-      
-      {/* ── Tier 1 (h-16) ── */}
-      <div className="h-16 border-b border-neutral-100/80">
+      {/* ── Tier 1: Main Header (h-16) ── */}
+      <div className="h-16">
         <div className="flex h-full w-full items-center justify-between gap-3 px-4 sm:px-6 lg:px-8">
-          
-          {/* Left: ShieldCheck brand box, Brand text, live Escrow pill, city picker */}
+          {/* Left: Brand logo with ShieldCheck, Solana 48h Escrow animated pill, City selector */}
           {!mobileSearch && (
-            <div className="flex shrink-0 items-center gap-2.5">
+            <div className="flex shrink-0 items-center gap-2.5 sm:gap-3">
               <Link href="/" className="flex items-center gap-2.5">
                 <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-neutral-900 text-emerald-400 shadow-sm">
                   <ShieldCheck className="h-5 w-5 stroke-[2.5]" />
@@ -365,8 +460,8 @@ export default function PublicNavbar({
                 </span>
               </Link>
 
-              {/* Live Escrow pill */}
-              <div className="hidden items-center gap-1.5 rounded-full border border-emerald-200/60 bg-emerald-50/80 px-2.5 py-1 text-[10px] font-bold text-emerald-800 sm:flex">
+              {/* Solana 48h Escrow animated pill */}
+              <div className="hidden items-center gap-1.5 rounded-full border border-emerald-200/80 bg-emerald-50/90 px-2.5 py-1 text-[10px] font-bold text-emerald-800 sm:flex">
                 <span className="relative flex h-2 w-2">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                   <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
@@ -374,7 +469,7 @@ export default function PublicNavbar({
                 <span>Solana 48h Escrow</span>
               </div>
 
-              {/* City picker dropdown */}
+              {/* City selector dropdown */}
               <button
                 type="button"
                 className="hidden items-center gap-1 border-l border-neutral-200 pl-2.5 text-xs text-neutral-500 transition hover:text-neutral-800 lg:flex"
@@ -386,9 +481,9 @@ export default function PublicNavbar({
             </div>
           )}
 
-          {/* Center: Full Omni-Search bar */}
+          {/* Center: Omni-Search Bar */}
           {!mobileSearch ? (
-            <div className="hidden flex-1 justify-center md:flex px-4 max-w-xl mx-auto">
+            <div className="hidden flex-1 justify-center md:flex px-4 max-w-md mx-auto">
               <OmniSearchBar className="w-full" />
             </div>
           ) : (
@@ -404,10 +499,10 @@ export default function PublicNavbar({
             </div>
           )}
 
-          {/* Right: Navigation links, + Đăng tin CTA pill, Bell, Profile menu */}
+          {/* Right: Nav Links, CTA, Wishlist, Bell, Profile */}
           {!mobileSearch && (
-            <div className="ml-auto flex shrink-0 items-center gap-2.5">
-              <nav className="hidden items-center gap-1 xl:flex">
+            <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-2.5">
+              <nav className="hidden items-center gap-1 lg:flex">
                 <Link
                   href="/"
                   className={clsx(
@@ -431,10 +526,12 @@ export default function PublicNavbar({
                 </Link>
 
                 <Link
-                  href="/orders"
+                  href="/user/orders"
                   className={clsx(
                     'flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold transition-colors',
-                    pathname.startsWith('/orders') ? 'text-neutral-950 font-bold' : 'text-neutral-500 hover:text-neutral-900',
+                    pathname.startsWith('/user/orders') || pathname.startsWith('/orders')
+                      ? 'text-neutral-950 font-bold'
+                      : 'text-neutral-500 hover:text-neutral-900',
                   )}
                 >
                   <ShoppingBag className="h-3.5 w-3.5" />
@@ -453,8 +550,18 @@ export default function PublicNavbar({
                 </Link>
               </nav>
 
-              <span className="hidden h-4 w-px bg-neutral-200 xl:block" />
+              <span className="hidden h-4 w-px bg-neutral-200 lg:block" />
 
+              {/* Wishlist Icon */}
+              <Link
+                href="/user/orders"
+                aria-label="Yêu thích"
+                className="hidden sm:flex h-8 w-8 items-center justify-center rounded-full text-neutral-600 transition hover:bg-neutral-100"
+              >
+                <Heart className="h-4 w-4" />
+              </Link>
+
+              {/* Notification Bell */}
               <button
                 type="button"
                 aria-label="Thông báo"
@@ -464,18 +571,19 @@ export default function PublicNavbar({
                 <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-rose-500 ring-1.5 ring-white" />
               </button>
 
-              {/* + Đăng tin CTA Pill */}
+              {/* + Đăng tin CTA Pill Button */}
               <Link
                 href="/sell"
-                className="flex items-center gap-1 rounded-full bg-neutral-900 px-3.5 py-1.5 text-xs font-bold text-white transition hover:bg-neutral-800 active:scale-95 shadow-2xs"
+                className="hidden sm:flex items-center gap-1 rounded-full bg-neutral-900 hover:bg-neutral-800 text-white text-xs font-semibold px-4 py-2 transition active:scale-95 shadow-2xs"
               >
                 <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
                 <span>Đăng tin</span>
               </Link>
 
-              {/* Dynamic User Profile Menu */}
-              <UserProfileMenu />
+              {/* User Profile Pill */}
+              <UserProfilePill />
 
+              {/* Mobile quick search trigger button */}
               <button
                 type="button"
                 onClick={() => setMobileSearch(true)}
@@ -485,11 +593,12 @@ export default function PublicNavbar({
                 <Search className="h-4 w-4" />
               </button>
 
+              {/* Mobile hamburger drawer toggle */}
               <button
                 type="button"
                 onClick={() => setMobileMenu((p) => !p)}
                 aria-label="Menu"
-                className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-600 transition hover:bg-neutral-100 xl:hidden"
+                className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-600 transition hover:bg-neutral-100 lg:hidden"
               >
                 <Menu className="h-4 w-4" />
               </button>
@@ -498,15 +607,16 @@ export default function PublicNavbar({
         </div>
       </div>
 
-      {/* Mobile Drawer */}
+      {/* Mobile Menu Drawer */}
       {mobileMenu && !mobileSearch && (
-        <div className="border-t border-neutral-100 bg-white px-4 py-3 shadow-lg xl:hidden space-y-1">
+        <div className="border-t border-neutral-100 bg-white px-4 py-3 shadow-lg lg:hidden space-y-1">
           <Link
             href="/"
             onClick={() => setMobileMenu(false)}
             className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-neutral-800 hover:bg-neutral-50"
           >
-            Khám phá
+            <Sparkles className="h-4 w-4 text-neutral-500" />
+            <span>Khám phá</span>
           </Link>
           <Link
             href="/chat"
@@ -514,43 +624,51 @@ export default function PublicNavbar({
             className="flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold text-neutral-800 hover:bg-neutral-50"
           >
             <div className="flex items-center gap-2">
-              <MessageCircle className="h-4 w-4" />
+              <MessageCircle className="h-4 w-4 text-neutral-500" />
               <span>Tin nhắn</span>
             </div>
             <span className="h-2 w-2 rounded-full bg-emerald-500" />
           </Link>
           <Link
-            href="/orders"
+            href="/user/orders"
             onClick={() => setMobileMenu(false)}
             className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-neutral-800 hover:bg-neutral-50"
           >
-            <ShoppingBag className="h-4 w-4" />
-            <span>Đơn hàng</span>
+            <ShoppingBag className="h-4 w-4 text-neutral-500" />
+            <span>Đơn hàng ký quỹ</span>
           </Link>
           <Link
-            href="/admin/disputes"
+            href="/admin/escrow"
             onClick={() => setMobileMenu(false)}
             className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-neutral-800 hover:bg-neutral-50"
           >
-            <Gavel className="h-4 w-4" />
-            <span>Cổng Trọng tài</span>
+            <Gavel className="h-4 w-4 text-neutral-500" />
+            <span>Cổng Trọng tài & Admin</span>
+          </Link>
+          <Link
+            href="/sell"
+            onClick={() => setMobileMenu(false)}
+            className="flex items-center gap-2 rounded-xl bg-neutral-900 text-white px-3 py-2 text-xs font-bold"
+          >
+            <Plus className="h-4 w-4" />
+            <span>Đăng tin bán hàng</span>
           </Link>
         </div>
       )}
 
-      {/* ── Tier 2 (h-12): Category Carousel & Distance Segmented Controls ── */}
-      {showCategoryBar && (
-        <div className="h-12 bg-white/95 border-b border-neutral-100">
+      {/* ── Tier 2: Category & Filter Bar (h-12) ── */}
+      {shouldShowCategoryBar && (
+        <div className="h-12 bg-white/95 border-t border-neutral-100/90">
           <div className="flex h-full w-full items-center justify-between px-4 sm:px-6 lg:px-8">
-            {/* Left: Categories */}
-            <div className="flex flex-1 items-center gap-1 overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            {/* Left: Horizontal scrollable category pills */}
+            <div className="flex flex-1 items-center gap-1.5 overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {CATEGORIES.map(({ label, value, Icon }) => {
                 const active = activeCat === value;
                 return (
                   <button
                     key={value}
                     type="button"
-                    onClick={() => handleCat(value)}
+                    onClick={() => handleCatSelect(value)}
                     className={clsx(
                       'flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-150',
                       active
@@ -565,13 +683,13 @@ export default function PublicNavbar({
               })}
             </div>
 
-            {/* Right: Distance Segmented Controls */}
+            {/* Right: Distance segmented control (Desktop/Tablet only) */}
             <div className="ml-3 hidden shrink-0 items-center rounded-lg border border-neutral-200 bg-neutral-50 p-0.5 sm:flex">
               {RADII.map(({ label, value }) => (
                 <button
                   key={value}
                   type="button"
-                  onClick={() => handleRadius(value)}
+                  onClick={() => handleRadiusSelect(value)}
                   className={clsx(
                     'h-7 rounded-md px-3 text-[11px] font-bold transition-all',
                     activeRadius === value
@@ -590,3 +708,14 @@ export default function PublicNavbar({
   );
 }
 
+export default function PublicNavbar(props: PublicNavbarProps) {
+  return (
+    <Suspense
+      fallback={
+        <header className="sticky top-0 z-40 w-full bg-white/85 backdrop-blur-xl border-b border-neutral-200/80 h-16" />
+      }
+    >
+      <PublicNavbarContent {...props} />
+    </Suspense>
+  );
+}

@@ -184,6 +184,53 @@ export function useDisputes(status?: string) {
   });
 }
 
+export const useAdminDisputes = useDisputes;
+
+export function useAdminEscrowList(filters?: {
+  buyerWallet?: string;
+  sellerWallet?: string;
+  status?: string;
+}) {
+  return useQuery({
+    queryKey: ['admin-escrow', filters],
+    queryFn: () => ordersApi.list(filters),
+    staleTime: 1000 * 15,
+    refetchInterval: 15_000,
+  });
+}
+
+export function useCompleteOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (orderId: string) => ordersApi.complete(orderId),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['admin-escrow'] });
+      qc.invalidateQueries({ queryKey: ['orders'] });
+      qc.invalidateQueries({ queryKey: ['order', data.id] });
+      toast.success('Đã kích hoạt giải ngân quỹ cho người bán.');
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message ?? 'Không thể giải ngân đơn hàng.');
+    },
+  });
+}
+
+export function useCancelOrder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (orderId: string) => ordersApi.cancel(orderId),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ['admin-escrow'] });
+      qc.invalidateQueries({ queryKey: ['orders'] });
+      qc.invalidateQueries({ queryKey: ['order', data.id] });
+      toast.success('Đã hủy đơn hàng và hoàn tiền về ví người mua.');
+    },
+    onError: (err: any) => {
+      toast.error(err?.response?.data?.message ?? 'Không thể hủy đơn hàng.');
+    },
+  });
+}
+
 export function useResolveDispute() {
   const qc = useQueryClient();
   return useMutation({

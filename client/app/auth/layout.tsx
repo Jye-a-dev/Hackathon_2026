@@ -11,8 +11,8 @@ import {
 } from 'lucide-react';
 
 export const metadata: Metadata = {
-  title: 'Xác thực tài khoản | Chợ Ký Quỹ',
-  description: 'Đăng nhập hoặc đăng ký tài khoản Chợ Ký Quỹ P2P Escrow Marketplace',
+  title: 'Xác thực tài khoản | TrustPass',
+  description: 'Đăng nhập hoặc đăng ký tài khoản TrustPass',
 };
 
 export default function AuthLayout({
@@ -61,7 +61,7 @@ export default function AuthLayout({
 
           <h1 className="text-3xl font-extrabold tracking-tight text-white sm:text-4xl xl:text-5xl leading-tight">
             Giao dịch an tâm với{' '}
-            <span className="bg-gradient-to-r from-emerald-400 via-teal-300 to-cyan-400 bg-clip-text text-transparent">
+            <span className="bg-linear-to-r from-emerald-400 via-teal-300 to-cyan-400 bg-clip-text text-transparent">
               Ký quỹ 48 Giờ
             </span>
           </h1>

@@ -1,377 +1,355 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import Link from 'next/link';
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import Link from 'next/link';
 import {
-  Scale,
-  CheckCircle2,
-  XCircle,
-  AlertTriangle,
-  ArrowLeft,
-  MessageSquare,
-  RefreshCw,
-  Package,
+  Scale, CheckCircle2, XCircle, AlertTriangle,
+  ArrowLeft, MessageSquare, RefreshCw, Package, ShieldOff,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import { formatVND } from '@/utils/formatCurrency';
 import { timeAgo } from '@/utils/formatTime';
-import { disputesApi } from '@/libs/api';
-import type { Dispute, DisputeStatus } from '@/types/dispute';
+import { useDisputes, useResolveDispute, useCurrentUser } from '@/hooks/useMarketplace';
+import { Skeleton } from '@/components/ui/skeleton';
+import { EmptyState } from '@/components/common/EmptyState';
+import { useState } from 'react';
+import type { Dispute } from '@/types/dispute';
 
-export default function AdminDisputesPage() {
-  const [disputes, setDisputes] = useState<Dispute[]>([]);
-  const [selectedDispute, setSelectedDispute] = useState<Dispute | null>(null);
-  const [resolutionNote, setResolutionNote] = useState('');
-  const [loading, setLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+// ─── Status badge ─────────────────────────────────────────────────────────────
 
-  const fetchDisputes = async () => {
-    setLoading(true);
-    setErrorMsg(null);
-    try {
-      const list = await disputesApi.list();
-      setDisputes(list);
-      if (list.length > 0) {
-        setSelectedDispute(list[0]);
-      } else {
-        setSelectedDispute(null);
-      }
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Không thể tải danh sách tranh chấp');
-    } finally {
-      setLoading(false);
-    }
-  };
+const STATUS_CONFIG: Record<string, { label: string; color: string }> = {
+  OPEN:            { label: 'Đang mở',     color: 'bg-amber-100 text-amber-800' },
+  UNDER_REVIEW:    { label: 'Đang xét',    color: 'bg-blue-100 text-blue-800' },
+  RESOLVED_BUYER:  { label: 'Hoàn tiền',   color: 'bg-purple-100 text-purple-800' },
+  RESOLVED_SELLER: { label: 'Giải ngân',   color: 'bg-emerald-100 text-emerald-800' },
+};
 
-  useEffect(() => {
-    fetchDisputes();
-  }, []);
+// ─── Dispute list skeleton ────────────────────────────────────────────────────
 
-  const handleRuling = async (decision: 'ReleaseToSeller' | 'RefundToBuyer') => {
-    if (!selectedDispute) return;
-    setIsSubmitting(true);
-    try {
-      await disputesApi.resolve(selectedDispute.id, {
-        decision,
-        notes:
-          resolutionNote ||
-          (decision === 'RefundToBuyer'
-            ? 'Chấp thuận hoàn tiền do lỗi sản phẩm'
-            : 'Bác bỏ khiếu nại, giải ngân cho người bán'),
-      });
-
-      const newStatus: DisputeStatus =
-        decision === 'RefundToBuyer' ? 'RESOLVED_BUYER' : 'RESOLVED_SELLER';
-
-      const updated: Dispute = {
-        ...selectedDispute,
-        status: newStatus,
-        resolutionNote:
-          resolutionNote ||
-          (decision === 'RefundToBuyer'
-            ? 'Hoàn trả 100% tiền ký quỹ cho Người mua'
-            : 'Giải ngân tiền ký quỹ cho Người bán'),
-        resolvedAt: new Date().toISOString(),
-      };
-
-      setDisputes((prev) =>
-        prev.map((d) => (d.id === updated.id ? updated : d)),
-      );
-      setSelectedDispute(updated);
-      setResolutionNote('');
-    } catch (err: any) {
-      alert('Lỗi phân xử: ' + (err?.message || 'Lỗi kết nối'));
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
+function DisputeListSkeleton() {
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 pb-16">
-      {/* Admin Top Navbar */}
-      <header className="border-b border-slate-800 bg-slate-900/80 backdrop-blur-md px-4 sm:px-6 lg:px-8 py-4 sticky top-0 z-30 flex items-center justify-between">
-        <div className="flex items-center gap-3">
-          <Link
-            href="/"
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-slate-800 text-slate-300 hover:text-white transition"
-          >
-            <ArrowLeft className="h-4 w-4" />
-          </Link>
-          <div className="flex items-center gap-2">
-            <Scale className="h-6 w-6 text-emerald-400" />
-            <h1 className="text-base sm:text-lg font-bold tracking-tight text-white">
-              Cổng Trọng Tài Phân Xử Ký Quỹ
-            </h1>
+    <div className="space-y-3">
+      {[1, 2, 3].map((n) => (
+        <div key={n} className="rounded-2xl border border-neutral-100 bg-white p-4 space-y-3">
+          <div className="flex gap-3">
+            <Skeleton className="h-14 w-14 rounded-xl shrink-0" />
+            <div className="flex-1 space-y-2">
+              <Skeleton className="h-4 w-3/4" />
+              <Skeleton className="h-3 w-1/2" />
+              <Skeleton className="h-4 w-24" />
+            </div>
           </div>
         </div>
+      ))}
+    </div>
+  );
+}
 
-        <span className="hidden sm:inline-flex rounded-full bg-emerald-500/10 border border-emerald-500/30 px-3 py-1 text-xs font-semibold text-emerald-400">
-          Admin Arbiter • Solana Escrow
-        </span>
+// ─── Page ─────────────────────────────────────────────────────────────────────
+
+export default function AdminDisputesPage() {
+  const router = useRouter();
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [resolutionNote, setResolutionNote] = useState('');
+
+  // ── Role guard — must be ADMIN or ARBITER ────────────────────────────────
+  const { data: user, isLoading: userLoading } = useCurrentUser();
+  useEffect(() => {
+    if (!userLoading && user && user.role !== 'ADMIN' && user.role !== 'ARBITER') {
+      toast.error('Bạn không có quyền truy cập trang này.');
+      router.replace('/');
+    }
+  }, [user, userLoading, router]);
+
+  // ── Data ─────────────────────────────────────────────────────────────────
+  const {
+    data: disputes,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useDisputes();
+
+  const { mutate: resolve, isPending: isResolving } = useResolveDispute();
+
+  // Auto-select first dispute
+  useEffect(() => {
+    if (disputes && disputes.length > 0 && !selectedId) {
+      setSelectedId(disputes[0].id);
+    }
+  }, [disputes, selectedId]);
+
+  // Show Sonner on fetch error
+  useEffect(() => {
+    if (isError && error) {
+      const msg = (error as any)?.response?.data?.message ?? (error as Error)?.message ?? 'Không thể tải danh sách tranh chấp';
+      toast.error(msg);
+    }
+  }, [isError, error]);
+
+  const selectedDispute = disputes?.find((d) => d.id === selectedId) ?? null;
+
+  const handleRuling = (decision: 'ReleaseToSeller' | 'RefundToBuyer') => {
+    if (!selectedDispute) return;
+    resolve({
+      id: selectedDispute.id,
+      decision,
+      notes: resolutionNote || undefined,
+    }, {
+      onSuccess: () => {
+        setResolutionNote('');
+        setSelectedId(null);
+      },
+    });
+  };
+
+  // ── Loading / access check ────────────────────────────────────────────────
+  if (userLoading) {
+    return (
+      <div className="min-h-screen bg-neutral-50 flex items-center justify-center">
+        <Scale className="h-8 w-8 animate-pulse text-neutral-300" />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen bg-neutral-50">
+      {/* Header */}
+      <header className="sticky top-0 z-20 flex h-16 items-center gap-3 border-b border-neutral-200 bg-white/95 px-4 backdrop-blur-md sm:px-6">
+        <button
+          onClick={() => router.push('/')}
+          className="flex h-9 w-9 items-center justify-center rounded-xl text-neutral-600 hover:bg-neutral-100 transition"
+        >
+          <ArrowLeft className="h-5 w-5" />
+        </button>
+        <div className="flex items-center gap-2">
+          <Scale className="h-5 w-5 text-neutral-700" />
+          <h1 className="text-base font-bold text-neutral-900">Cổng Trọng Tài Phân Xử</h1>
+        </div>
+        {user && (
+          <span className="ml-auto rounded-full bg-indigo-100 px-3 py-1 text-xs font-semibold text-indigo-700">
+            {user.role}
+          </span>
+        )}
       </header>
 
-      <main className="max-w-7xl mx-auto p-4 sm:p-6 lg:p-8">
-        {loading ? (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <div className="space-y-3">
-              {[1, 2, 3].map((n) => (
-                <div
-                  key={n}
-                  className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-2 animate-pulse"
-                >
-                  <div className="h-4 w-24 bg-slate-800 rounded" />
-                  <div className="h-5 w-40 bg-slate-800 rounded" />
-                </div>
-              ))}
-            </div>
-            <div className="lg:col-span-2 bg-slate-900 border border-slate-800 rounded-3xl p-8 animate-pulse h-80" />
-          </div>
-        ) : errorMsg ? (
-          <div className="text-center bg-slate-900 border border-slate-800 rounded-3xl p-8 max-w-md mx-auto">
-            <p className="text-3xl mb-2">⚠️</p>
-            <p className="text-sm font-bold text-slate-200">{errorMsg}</p>
+      <div className="mx-auto flex max-w-7xl gap-6 p-4 sm:p-6">
+
+        {/* ── LEFT: Dispute list ── */}
+        <aside className="w-full max-w-sm shrink-0 space-y-3">
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-bold text-neutral-700">
+              Tranh chấp đang mở
+              {disputes && (
+                <span className="ml-2 rounded-full bg-red-100 px-2 py-0.5 text-xs font-semibold text-red-700">
+                  {disputes.filter((d) => d.status === 'OPEN' || d.status === 'UNDER_REVIEW').length}
+                </span>
+              )}
+            </h2>
             <button
-              onClick={fetchDisputes}
-              className="mt-4 gradient-primary px-4 py-2 rounded-xl text-xs font-bold text-white shadow-sm inline-flex items-center gap-1.5"
+              onClick={() => refetch()}
+              className="flex items-center gap-1 text-xs text-neutral-400 hover:text-neutral-700 transition"
             >
-              <RefreshCw className="h-3.5 w-3.5" />
-              <span>Tải lại</span>
+              <RefreshCw className="h-3.5 w-3.5" /> Làm mới
             </button>
           </div>
-        ) : disputes.length === 0 ? (
-          <div className="text-center bg-slate-900 border border-slate-800 rounded-3xl p-12 max-w-md mx-auto">
-            <Package className="h-12 w-12 text-slate-600 mx-auto mb-3" />
-            <h3 className="font-bold text-slate-200 text-base">
-              Không có tranh chấp nào
-            </h3>
-            <p className="text-xs text-slate-400 mt-1 mb-6">
-              Mọi giao dịch ký quỹ đang diễn ra thuận lợi không có khiếu nại mở.
-            </p>
-            <Link
-              href="/"
-              className="gradient-primary px-5 py-2.5 rounded-xl text-xs font-bold text-white"
-            >
-              Về trang chủ
-            </Link>
-          </div>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            {/* Left Column: Disputed Orders List */}
-            <div className="space-y-3">
-              <h2 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                Danh sách khiếu nại ({disputes.length})
-              </h2>
 
-              <div className="space-y-2.5">
-                {disputes.map((d) => {
-                  const isSelected = selectedDispute && d.id === selectedDispute.id;
-                  const isResolved = d.status.startsWith('RESOLVED');
+          {isLoading && <DisputeListSkeleton />}
 
-                  return (
-                    <button
-                      key={d.id}
-                      onClick={() => setSelectedDispute(d)}
-                      className={`w-full text-left p-4 sm:p-5 rounded-3xl border transition-all ${
-                        isSelected
-                          ? 'bg-slate-800 border-emerald-500 shadow-md ring-1 ring-emerald-500/50'
-                          : 'bg-slate-900 border-slate-800 hover:border-slate-700'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between text-xs mb-1.5">
-                        <span className="font-mono text-slate-400 font-semibold">
-                          #{d.orderId ? d.orderId.slice(-8) : d.id}
-                        </span>
-                        <span
-                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold ${
-                            d.status === 'RESOLVED_BUYER'
-                              ? 'bg-red-900/60 text-red-300 border border-red-800'
-                              : d.status === 'RESOLVED_SELLER'
-                              ? 'bg-emerald-900/60 text-emerald-300 border border-emerald-800'
-                              : 'bg-amber-900/60 text-amber-300 border border-amber-800'
-                          }`}
-                        >
-                          {d.status === 'RESOLVED_BUYER'
-                            ? 'Đã hoàn Buyer'
-                            : d.status === 'RESOLVED_SELLER'
-                            ? 'Đã trả Seller'
-                            : 'Chờ phân xử'}
-                        </span>
-                      </div>
-
-                      <h3 className="text-xs font-bold text-slate-200 line-clamp-1">
-                        {d.listingTitle}
-                      </h3>
-                      <div className="flex items-center justify-between mt-2 text-xs">
-                        <span className="font-black text-emerald-400">
-                          {formatVND(d.amountVnd)}
-                        </span>
-                        <span className="text-[10px] text-slate-500">
-                          {timeAgo(d.createdAt)}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+          {isError && !isLoading && (
+            <div className="rounded-2xl border border-red-100 bg-white p-4 text-center text-sm text-red-600">
+              <p>Không thể tải tranh chấp</p>
+              <button onClick={() => refetch()} className="mt-2 text-xs underline">Thử lại</button>
             </div>
+          )}
 
-            {/* Right 2 Columns: Evidence Reviewer & Ruling Console */}
-            {selectedDispute && (
-              <div className="lg:col-span-2 space-y-6">
-                {/* Dispute Case Header */}
-                <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4">
-                  <div className="flex items-start justify-between">
-                    <div>
-                      <span className="font-mono text-xs text-slate-400 font-medium">
-                        Khiếu nại #{selectedDispute.id} • Đơn hàng: #{selectedDispute.orderId}
-                      </span>
-                      <h2 className="text-base sm:text-lg font-bold text-white mt-1">
-                        {selectedDispute.listingTitle}
-                      </h2>
-                    </div>
-                    <span className="text-lg sm:text-xl font-black text-emerald-400 shrink-0">
-                      {formatVND(selectedDispute.amountVnd)}
-                    </span>
-                  </div>
+          {!isLoading && !isError && (!disputes || disputes.length === 0) && (
+            <EmptyState
+              icon={Package}
+              title="Không có tranh chấp"
+              description="Tất cả tranh chấp đã được giải quyết."
+              className="mt-4"
+            />
+          )}
 
-                  {/* Parties info */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs bg-slate-950/60 p-3.5 rounded-2xl border border-slate-800/80">
-                    <div>
-                      <span className="text-slate-500 block text-[10px]">
-                        Người mua (Khiếu nại)
-                      </span>
-                      <span className="font-mono text-slate-300 font-medium truncate block">
-                        {selectedDispute.buyerWallet}
-                      </span>
-                    </div>
-                    <div>
-                      <span className="text-slate-500 block text-[10px]">
-                        Người bán (Đăng tin)
-                      </span>
-                      <span className="font-mono text-slate-300 font-medium truncate block">
-                        {selectedDispute.sellerWallet}
-                      </span>
-                    </div>
-                  </div>
-
-                  {/* Dispute reason */}
-                  <div className="bg-red-950/30 border border-red-900/50 rounded-2xl p-4 text-xs">
-                    <div className="flex items-center gap-1.5 text-red-400 font-bold mb-1">
-                      <AlertTriangle className="h-4 w-4" />
-                      <span>Nội dung khiếu nại từ Người mua:</span>
-                    </div>
-                    <p className="text-slate-300 leading-relaxed">
-                      &ldquo;{selectedDispute.reason}&rdquo;
-                    </p>
-                  </div>
-                </div>
-
-                {/* Evidence Viewer */}
-                <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                    Đối chiếu bằng chứng thực tế
-                  </h3>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {/* Seller's Original Image */}
-                    <div className="space-y-2">
-                      <span className="text-xs font-semibold text-emerald-400 flex items-center gap-1">
-                        <span>📸</span> Ảnh Người bán rao bán:
-                      </span>
-                      <div className="relative aspect-square rounded-2xl overflow-hidden border border-slate-800 bg-slate-950">
-                        <Image
-                          src={selectedDispute.listingImage}
-                          alt="Seller listing photo"
-                          fill
-                          className="object-cover"
-                        />
-                      </div>
-                    </div>
-
-                    {/* Buyer's Evidence Image */}
-                    <div className="space-y-2">
-                      <span className="text-xs font-semibold text-amber-400 flex items-center gap-1">
-                        <span>📦</span> Bằng chứng Unbox lỗi:
-                      </span>
-                      <div className="relative aspect-square rounded-2xl overflow-hidden border border-amber-900/40 bg-slate-950">
-                        <Image
-                          src={
-                            selectedDispute.evidenceUrls?.[0] ||
-                            selectedDispute.listingImage
-                          }
-                          alt="Buyer unbox evidence"
-                          fill
-                          className="object-cover"
-                        />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Ruling Actions */}
-                <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 sm:p-6 space-y-4">
-                  <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                    Quyết định Trọng tài Phán xử
-                  </h3>
-
-                  {selectedDispute.status.startsWith('RESOLVED') ? (
-                    <div className="p-4 rounded-2xl bg-slate-800 border border-slate-700 text-center space-y-1">
-                      <span className="text-xs font-bold text-emerald-400">
-                        ✅ Vụ việc đã được phân xử hoàn tất!
-                      </span>
-                      <p className="text-xs text-slate-300">
-                        {selectedDispute.resolutionNote || 'Hợp đồng ký quỹ đã được giải quyết.'}
-                      </p>
-                      {selectedDispute.resolvedAt && (
-                        <p className="text-[10px] text-slate-500">
-                          Thời gian:{' '}
-                          {new Date(selectedDispute.resolvedAt).toLocaleString('vi-VN')}
-                        </p>
-                      )}
+          {!isLoading && !isError && disputes && disputes.map((d: Dispute) => {
+            const cfg = STATUS_CONFIG[d.status] ?? STATUS_CONFIG.OPEN;
+            return (
+              <button
+                key={d.id}
+                onClick={() => setSelectedId(d.id)}
+                className={`w-full rounded-2xl border p-4 text-left transition hover:shadow-md ${
+                  selectedId === d.id
+                    ? 'border-indigo-300 bg-indigo-50 shadow-sm'
+                    : 'border-neutral-100 bg-white'
+                }`}
+              >
+                <div className="flex gap-3">
+                  {d.listingImage ? (
+                    <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl border border-neutral-200 bg-neutral-100">
+                      <Image src={d.listingImage} alt={d.listingTitle} fill className="object-cover" />
                     </div>
                   ) : (
-                    <>
-                      <div>
-                        <label className="block text-xs font-semibold text-slate-300 mb-1">
-                          Căn cứ phán quyết / Ghi chú:
-                        </label>
-                        <input
-                          type="text"
-                          value={resolutionNote}
-                          onChange={(e) => setResolutionNote(e.target.value)}
-                          placeholder="VD: Bằng chứng lỗi unbox rõ ràng, chấp thuận hoàn tiền Buyer..."
-                          className="w-full rounded-xl border border-slate-700 bg-slate-950 p-3 text-xs text-white focus:border-emerald-500 focus:outline-none"
-                        />
-                      </div>
+                    <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-xl border border-neutral-200 bg-neutral-100">
+                      <Package className="h-6 w-6 text-neutral-300" />
+                    </div>
+                  )}
+                  <div className="flex-1 min-w-0">
+                    <p className="truncate text-xs font-bold text-neutral-800">{d.listingTitle}</p>
+                    <p className="mt-0.5 text-xs font-semibold text-red-600">{formatVND(d.amountVnd)}</p>
+                    <p className="mt-0.5 truncate text-[10px] text-neutral-400">{timeAgo(d.createdAt)}</p>
+                    <span className={`mt-1 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${cfg.color}`}>
+                      {cfg.label}
+                    </span>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
+        </aside>
 
-                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-2">
-                        <button
-                          onClick={() => handleRuling('RefundToBuyer')}
-                          disabled={isSubmitting}
-                          className="flex items-center justify-center gap-2 rounded-2xl bg-red-600 hover:bg-red-500 py-3.5 text-xs font-bold text-white shadow-lg shadow-red-950 transition active:scale-95 disabled:opacity-50"
-                        >
-                          <XCircle className="h-4 w-4" />
-                          <span>Hoàn tiền cho Buyer (100%)</span>
-                        </button>
+        {/* ── RIGHT: Detail & ruling ── */}
+        <section className="flex-1 space-y-5">
+          {!selectedDispute ? (
+            <div className="flex h-64 items-center justify-center rounded-2xl border border-dashed border-neutral-200 bg-white text-neutral-400">
+              <div className="text-center">
+                <Scale className="mx-auto h-10 w-10 mb-2" />
+                <p className="text-sm">Chọn một tranh chấp để xem chi tiết</p>
+              </div>
+            </div>
+          ) : (
+            <>
+              {/* Dispute detail */}
+              <div className="rounded-2xl border border-neutral-100 bg-white p-6 shadow-sm space-y-5">
+                <div className="flex items-start justify-between">
+                  <div>
+                    <h3 className="text-base font-bold text-neutral-900">{selectedDispute.listingTitle}</h3>
+                    <p className="mt-0.5 text-xs text-neutral-400">
+                      Mã đơn: <span className="font-mono font-semibold">#{selectedDispute.orderId.slice(-8)}</span>
+                      {' · '}
+                      {timeAgo(selectedDispute.createdAt)}
+                    </p>
+                  </div>
+                  <span className="text-xl font-black text-red-600">{formatVND(selectedDispute.amountVnd)}</span>
+                </div>
 
-                        <button
-                          onClick={() => handleRuling('ReleaseToSeller')}
-                          disabled={isSubmitting}
-                          className="flex items-center justify-center gap-2 rounded-2xl bg-emerald-600 hover:bg-emerald-500 py-3.5 text-xs font-bold text-white shadow-lg shadow-emerald-950 transition active:scale-95 disabled:opacity-50"
-                        >
-                          <CheckCircle2 className="h-4 w-4" />
-                          <span>Thanh toán cho Seller</span>
-                        </button>
-                      </div>
-                    </>
+                {/* Parties */}
+                <div className="grid grid-cols-2 gap-4 rounded-xl bg-neutral-50 p-4">
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Người mua</p>
+                    <p className="mt-1 truncate font-mono text-xs text-neutral-700">{selectedDispute.buyerWallet}</p>
+                  </div>
+                  <div>
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">Người bán</p>
+                    <p className="mt-1 truncate font-mono text-xs text-neutral-700">{selectedDispute.sellerWallet}</p>
+                  </div>
+                </div>
+
+                {/* Reason */}
+                <div>
+                  <p className="mb-2 text-xs font-bold text-neutral-700 flex items-center gap-1.5">
+                    <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                    Lý do khiếu nại
+                  </p>
+                  <p className="rounded-xl bg-amber-50 p-3 text-sm text-neutral-800 border border-amber-100">
+                    {selectedDispute.reason || 'Không có lý do cụ thể'}
+                  </p>
+                </div>
+
+                {/* Evidence */}
+                {selectedDispute.evidenceUrls.length > 0 && (
+                  <div>
+                    <p className="mb-2 text-xs font-bold text-neutral-700">Bằng chứng ({selectedDispute.evidenceUrls.length} file)</p>
+                    <div className="grid grid-cols-4 gap-2">
+                      {selectedDispute.evidenceUrls.map((url, i) => (
+                        <a key={i} href={url} target="_blank" rel="noreferrer"
+                          className="relative aspect-square overflow-hidden rounded-xl border border-neutral-200 bg-neutral-100 hover:opacity-90 transition">
+                          <Image src={url} alt={`Bằng chứng ${i + 1}`} fill className="object-cover" />
+                        </a>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Chat history */}
+                {selectedDispute.chatHistory && selectedDispute.chatHistory.length > 0 && (
+                  <div>
+                    <p className="mb-2 text-xs font-bold text-neutral-700 flex items-center gap-1.5">
+                      <MessageSquare className="h-3.5 w-3.5" />
+                      Lịch sử trò chuyện liên quan
+                    </p>
+                    <div className="rounded-xl border border-neutral-100 bg-neutral-50 p-3 space-y-2 max-h-40 overflow-y-auto">
+                      {selectedDispute.chatHistory.map((msg, i) => (
+                        <div key={i} className="text-xs">
+                          <span className="font-semibold text-neutral-600">{msg.sender}:</span>{' '}
+                          <span className="text-neutral-700">{msg.content}</span>
+                          <span className="ml-2 text-neutral-400">{msg.createdAt}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Ruling panel */}
+              {(selectedDispute.status === 'OPEN' || selectedDispute.status === 'UNDER_REVIEW') && (
+                <div className="rounded-2xl border border-neutral-100 bg-white p-6 shadow-sm space-y-4">
+                  <h4 className="text-sm font-bold text-neutral-800">Phán quyết Trọng tài</h4>
+
+                  <div>
+                    <label className="mb-1 block text-xs font-semibold text-neutral-600">
+                      Ghi chú phán quyết (không bắt buộc)
+                    </label>
+                    <textarea
+                      rows={3}
+                      value={resolutionNote}
+                      onChange={(e) => setResolutionNote(e.target.value)}
+                      placeholder="Lý do quyết định, nhận xét về bằng chứng..."
+                      className="w-full rounded-xl border border-neutral-200 p-3 text-xs focus:border-neutral-400 focus:outline-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <button
+                      onClick={() => handleRuling('RefundToBuyer')}
+                      disabled={isResolving}
+                      className="flex items-center justify-center gap-2 rounded-xl bg-purple-600 py-3 text-sm font-bold text-white transition hover:bg-purple-700 disabled:opacity-50"
+                    >
+                      <XCircle className="h-4 w-4" />
+                      Hoàn tiền Người mua
+                    </button>
+                    <button
+                      onClick={() => handleRuling('ReleaseToSeller')}
+                      disabled={isResolving}
+                      className="flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 text-sm font-bold text-white transition hover:bg-emerald-700 disabled:opacity-50"
+                    >
+                      <CheckCircle2 className="h-4 w-4" />
+                      Giải ngân Người bán
+                    </button>
+                  </div>
+
+                  {isResolving && (
+                    <p className="text-center text-xs text-neutral-400 animate-pulse">Đang xử lý phán quyết...</p>
                   )}
                 </div>
-              </div>
-            )}
-          </div>
-        )}
-      </main>
+              )}
+
+              {/* Resolved state */}
+              {(selectedDispute.status === 'RESOLVED_BUYER' || selectedDispute.status === 'RESOLVED_SELLER') && (
+                <div className="rounded-2xl border border-neutral-100 bg-neutral-50 p-5 text-center">
+                  <ShieldOff className="mx-auto h-8 w-8 text-neutral-400 mb-2" />
+                  <p className="text-sm font-bold text-neutral-700">Tranh chấp đã được giải quyết</p>
+                  {selectedDispute.resolutionNote && (
+                    <p className="mt-1 text-xs text-neutral-500">{selectedDispute.resolutionNote}</p>
+                  )}
+                </div>
+              )}
+            </>
+          )}
+        </section>
+      </div>
     </div>
   );
 }

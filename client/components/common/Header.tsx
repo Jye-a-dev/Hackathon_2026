@@ -31,18 +31,16 @@ const DESKTOP_NAV = [
 export default function Header({ showLocation = true, title }: HeaderProps) {
   const pathname = usePathname();
   const router = useRouter();
-  const { username, wallet } = useAuthStore();
+  const { user, isLoggedIn } = useAuthStore();
   const [searchFocused, setSearchFocused] = useState(false);
   const [searchVal, setSearchVal] = useState('');
   const inputRef = useRef<HTMLInputElement>(null);
 
-  const displayName =
-    username ||
-    (wallet ? `${wallet.slice(0, 6)}…${wallet.slice(-4)}` : 'Tài khoản');
+  const displayName = user?.username ?? 'Tài khoản';
 
   const handleSearchSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (searchVal.trim()) router.push(`/search?q=${encodeURIComponent(searchVal)}`);
+    if (searchVal.trim()) router.push(`/?search=${encodeURIComponent(searchVal)}`);
   };
 
   return (

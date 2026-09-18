@@ -18,7 +18,7 @@ import BottomNav from '@/components/common/BottomNav';
 import { useAuthStore } from '@/store/useAuthStore';
 
 export default function ProfilePage() {
-  const { username, wallet, avatarUrl } = useAuthStore();
+  const { user, logout } = useAuthStore();
 
   return (
     <div className="min-h-screen bg-slate-50 pb-28">
@@ -29,8 +29,8 @@ export default function ProfilePage() {
         <div className="bg-white rounded-3xl p-5 shadow-sm border border-slate-100 flex items-center gap-4">
           <div className="relative">
             <Image
-              src={avatarUrl || 'https://api.dicebear.com/9.x/avataaars/svg?seed=MinhTuan'}
-              alt={username || 'User'}
+              src={user?.avatarUrl || `https://api.dicebear.com/9.x/avataaars/svg?seed=${user?.id ?? 'anon'}`}
+              alt={user?.username || 'User'}
               width={64}
               height={64}
               className="rounded-full ring-4 ring-emerald-500/20 bg-slate-100 object-cover"
@@ -41,19 +41,19 @@ export default function ProfilePage() {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-1.5">
               <h2 className="text-base font-bold text-slate-900 truncate">
-                {username || 'Người dùng Ký Quỹ'}
+                {user?.username || 'Người dùng Ký Quỹ'}
               </h2>
               <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700 shrink-0">
                 Đã xác thực
               </span>
             </div>
             <p className="font-mono text-xs text-slate-400 truncate mt-0.5">
-              {wallet ? `${wallet.slice(0, 8)}...${wallet.slice(-6)}` : 'ID: user_88291'}
+              {user?.email ?? (user?.id ? `ID: ${user.id.slice(0, 8)}...` : 'Chưa đăng nhập')}
             </p>
             <div className="mt-1 flex items-center gap-2 text-[11px] text-slate-500">
-              <span className="text-amber-600 font-bold">⭐ 4.9 / 5.0</span>
-              <span>•</span>
-              <span>18 giao dịch thành công</span>
+              {user?.rating !== undefined && (
+                <span className="text-amber-600 font-bold">⭐ {user.rating.toFixed(1)} / 5.0</span>
+              )}
             </div>
           </div>
         </div>

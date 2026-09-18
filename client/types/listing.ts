@@ -17,10 +17,10 @@ export interface SellerProfile {
   id: string;
   username: string;
   avatarUrl?: string;
-  rating: number;        // 0–5
-  totalDeals: number;
+  rating: number;          // 0–5
+  totalDeals?: number;
   isVerified: boolean;
-  responseTimeMin: number; // average response time in minutes
+  responseTimeMin?: number; // average response time in minutes
 }
 
 export interface Listing {

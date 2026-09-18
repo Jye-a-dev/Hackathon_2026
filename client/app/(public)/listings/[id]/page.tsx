@@ -20,10 +20,11 @@ import {
 import ImageCarousel from '@/components/common/ImageCarousel';
 import EscrowBadge from '@/components/common/EscrowBadge';
 import Header from '@/components/common/Header';
-import { formatVND } from '@/utils/formatCurrency';
+import { Money } from '@/domain/value-objects/Money';
 import { timeAgo } from '@/utils/formatTime';
 import { listingsApi, ordersApi } from '@/libs/api';
 import { useAuthStore } from '@/store/useAuthStore';
+import { toast } from 'sonner';
 import type { Listing } from '@/types/listing';
 
 const conditionMap: Record<string, { label: string; desc: string }> = {
@@ -40,7 +41,7 @@ export default function ListingDetailPage({
 }) {
   const resolvedParams = use(params);
   const router = useRouter();
-  const { wallet } = useAuthStore();
+  const { isLoggedIn, user } = useAuthStore();
 
   const [listing, setListing] = useState<Listing | null>(null);
   const [loading, setLoading] = useState(true);
@@ -71,20 +72,24 @@ export default function ListingDetailPage({
 
   const handleCreateOrder = async () => {
     if (!listing) return;
+    if (!isLoggedIn || !user?.id) {
+      toast.error('Vui lòng đăng nhập để mua hàng');
+      router.push('/auth/login');
+      return;
+    }
     setIsOrdering(true);
 
     try {
-      const buyerWallet = wallet || 'BuyerMockWallet4752331111111111111111111';
       const order = await ordersApi.create({
         listingId: listing.id,
-        buyerWallet,
+        buyerWallet: user.id,
         sellerWallet: listing.seller.id,
         amountVnd: listing.price,
       });
 
       router.push(`/checkout/${order.id}`);
     } catch (err: any) {
-      alert('Không thể khởi tạo giao dịch ký quỹ: ' + (err?.message || 'Lỗi kết nối'));
+      toast.error('Không thể khởi tạo giao dịch ký quỹ: ' + (err?.message || 'Lỗi kết nối'));
     } finally {
       setIsOrdering(false);
     }
@@ -198,8 +203,8 @@ export default function ListingDetailPage({
             {/* Price & Title Card */}
             <div className="bg-white rounded-3xl p-5 sm:p-6 shadow-xs border border-slate-100">
               <div className="flex items-baseline justify-between gap-2">
-                <span className="text-2xl sm:text-3xl font-black text-emerald-600">
-                  {formatVND(listing.price)}
+                <span className="text-2xl sm:text-3xl font-black text-emerald-600 font-sans">
+                  {new Money(listing.price, 'VND').format()}
                 </span>
                 <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700 border border-emerald-200/50">
                   {cond.label}

@@ -1,176 +1,305 @@
+// ─────────────────────────────────────────────
+// libs/normalizers.ts — Backend → Frontend shape mapping
+// Zero hardcoded fallback numerics, zero fake data
+// ─────────────────────────────────────────────
 import type { Listing } from '@/types/listing';
 import type { Order, OrderStatus } from '@/types/order';
 import type { Dispute, DisputeStatus } from '@/types/dispute';
 import type { Conversation, ChatMessage } from '@/types/chat';
 
-const DEFAULT_IMAGE =
-  'https://images.unsplash.com/photo-1526170375885-4d8ecf77b99f?auto=format&fit=crop&w=800&q=80';
+export interface RawListingLocation {
+  district?: string;
+  city?: string;
+}
 
-export function normalizeListing(raw: any): Listing {
-  if (!raw) {
-    throw new Error('Listing payload is null or undefined');
-  }
+export interface RawListingSeller {
+  id?: string;
+  username?: string;
+  avatarUrl?: string;
+  rating?: number | string;
+  totalDeals?: number | string;
+  isVerified?: boolean;
+  responseTimeMin?: number | string;
+}
 
-  const rawImages = raw.images;
+export interface RawListing {
+  id?: string | number;
+  title?: string;
+  description?: string;
+  price_vnd?: number | string;
+  price?: number | string;
+  images?: unknown[];
+  category?: Listing['category'];
+  condition?: Listing['condition'];
+  status?: Listing['status'];
+  location?: RawListingLocation | null;
+  location_name?: string | null;
+  seller_wallet?: string;
+  seller?: RawListingSeller | null;
+  created_at?: string;
+  createdAt?: string;
+  viewCount?: number | string;
+  likeCount?: number | string;
+}
+
+export function normalizeListing(raw: unknown): Listing {
+  if (!raw || typeof raw !== 'object') throw new Error('Listing payload is null or undefined');
+  const r = raw as RawListing;
+
+  const rawImages = r.images;
   const images =
     Array.isArray(rawImages) && rawImages.length > 0
-      ? rawImages.filter(Boolean)
-      : [DEFAULT_IMAGE];
+      ? rawImages.filter((img): img is string => Boolean(img)).map(String)
+      : [];
 
-  const sellerWallet = raw.seller_wallet || raw.seller?.id || '0xSellerWallet';
+  const sellerWallet = r.seller_wallet ?? r.seller?.id ?? '';
   const username =
-    raw.seller?.username ||
+    r.seller?.username ??
     (sellerWallet.length > 12
       ? `${sellerWallet.slice(0, 6)}...${sellerWallet.slice(-4)}`
-      : sellerWallet);
+      : sellerWallet || 'Người bán');
 
-  let district = 'Hồ Chí Minh';
-  let city = 'Việt Nam';
-  if (raw.location && typeof raw.location === 'object') {
-    district = raw.location.district || district;
-    city = raw.location.city || city;
-  } else if (typeof raw.location_name === 'string' && raw.location_name.trim()) {
-    const parts = raw.location_name.split(',').map((p: string) => p.trim());
-    district = parts[0] || district;
-    city = parts[1] || city;
+  let district = '';
+  let city = '';
+  if (r.location && typeof r.location === 'object') {
+    district = r.location.district ?? '';
+    city = r.location.city ?? '';
+  } else if (typeof r.location_name === 'string' && r.location_name.trim()) {
+    const parts = r.location_name.split(',').map((p: string) => p.trim());
+    district = parts[0] ?? '';
+    city = parts[1] ?? '';
   }
 
   return {
-    id: String(raw.id),
-    title: raw.title || 'Món đồ không có tiêu đề',
-    description: raw.description || '',
-    price: Number(raw.price_vnd ?? raw.price ?? 0),
-    images: images.length > 0 ? images : [DEFAULT_IMAGE],
-    category: raw.category || 'OTHER',
-    condition: raw.condition || 'GOOD',
-    status: raw.status || 'ACTIVE',
-    location: {
-      district,
-      city,
-    },
+    id: String(r.id),
+    title: r.title ?? 'Sản phẩm',
+    description: r.description ?? '',
+    price: Number(r.price_vnd ?? r.price ?? 0),
+    images,
+    category: r.category ?? 'OTHER',
+    condition: r.condition ?? 'GOOD',
+    status: r.status ?? 'ACTIVE',
+    location: { district, city },
     seller: {
       id: sellerWallet,
       username,
       avatarUrl:
-        raw.seller?.avatarUrl ||
-        `https://api.dicebear.com/9.x/avataaars/svg?seed=${sellerWallet}`,
-      rating: Number(raw.seller?.rating ?? 5.0),
-      totalDeals: Number(raw.seller?.totalDeals ?? 12),
-      isVerified: Boolean(raw.seller?.isVerified ?? true),
-      responseTimeMin: Number(raw.seller?.responseTimeMin ?? 15),
+        r.seller?.avatarUrl ??
+        (sellerWallet
+          ? `https://api.dicebear.com/9.x/avataaars/svg?seed=${sellerWallet}`
+          : undefined),
+      rating: Number(r.seller?.rating ?? 0),
+      totalDeals: r.seller?.totalDeals !== undefined ? Number(r.seller.totalDeals) : undefined,
+      isVerified: Boolean(r.seller?.isVerified ?? false),
+      responseTimeMin:
+        r.seller?.responseTimeMin !== undefined
+          ? Number(r.seller.responseTimeMin)
+          : undefined,
     },
-    createdAt: raw.created_at || raw.createdAt || new Date().toISOString(),
-    viewCount: Number(raw.viewCount ?? 38),
-    likeCount: Number(raw.likeCount ?? 6),
+    createdAt: r.created_at ?? r.createdAt ?? new Date().toISOString(),
+    viewCount: r.viewCount !== undefined ? Number(r.viewCount) : undefined,
+    likeCount: r.likeCount !== undefined ? Number(r.likeCount) : undefined,
   };
 }
 
-export function normalizeOrder(raw: any): Order {
-  if (!raw) throw new Error('Order payload is null or undefined');
+export interface RawOrder {
+  id?: string | number;
+  order_id?: string | number;
+  amount_vnd?: number | string;
+  amount_lamports?: number | string;
+  amount?: number | string;
+  amountVnd?: number | string;
+  listing_id?: string | number;
+  listingId?: string | number;
+  listing_title?: string;
+  listingTitle?: string;
+  listing_image?: string;
+  listingImage?: string;
+  images?: unknown[];
+  buyer_wallet?: string;
+  buyerWallet?: string;
+  seller_wallet?: string;
+  sellerWallet?: string;
+  status?: OrderStatus | string;
+  payment_intent_id?: string;
+  paymentIntentId?: string;
+  tracking_code?: string;
+  trackingCode?: string;
+  delivered_at?: string;
+  deliveredAt?: string;
+  completed_at?: string;
+  completedAt?: string;
+  created_at?: string;
+  createdAt?: string;
+  dispute_reason?: string;
+  reason?: string;
+  disputeReason?: string;
+  evidence_urls?: string[];
+  disputeEvidenceUrls?: string[];
+}
 
-  const id = String(raw.id ?? raw.order_id ?? '');
+export function normalizeOrder(raw: unknown): Order {
+  if (!raw || typeof raw !== 'object') throw new Error('Order payload is null or undefined');
+  const r = raw as RawOrder;
+
+  const id = String(r.id ?? r.order_id ?? '');
   const amount = Number(
-    raw.amount_vnd ?? raw.amount_lamports ?? raw.amount ?? raw.amountVnd ?? 0,
+    r.amount_vnd ?? r.amount_lamports ?? r.amount ?? r.amountVnd ?? 0,
   );
 
   return {
     id,
-    listingId: String(raw.listing_id ?? raw.listingId ?? '1'),
+    listingId: String(r.listing_id ?? r.listingId ?? ''),
     listingTitle:
-      raw.listing_title ??
-      raw.listingTitle ??
+      r.listing_title ??
+      r.listingTitle ??
       `Giao dịch Ký quỹ #${id.slice(-6)}`,
     listingImage:
-      raw.listing_image ??
-      raw.listingImage ??
-      (Array.isArray(raw.images) && raw.images[0] ? raw.images[0] : DEFAULT_IMAGE),
-    buyerWallet: raw.buyer_wallet ?? raw.buyerWallet ?? '',
-    sellerWallet: raw.seller_wallet ?? raw.sellerWallet ?? '',
+      r.listing_image ??
+      r.listingImage ??
+      (Array.isArray(r.images) && r.images[0] ? String(r.images[0]) : ''),
+    buyerWallet: r.buyer_wallet ?? r.buyerWallet ?? '',
+    sellerWallet: r.seller_wallet ?? r.sellerWallet ?? '',
     amountVnd: amount,
-    status: (raw.status as OrderStatus) || 'LOCKED',
-    trackingCode: raw.tracking_code ?? raw.trackingCode,
-    deliveredAt: raw.delivered_at ?? raw.deliveredAt,
-    completedAt: raw.completed_at ?? raw.completedAt,
-    createdAt: raw.created_at ?? raw.createdAt ?? new Date().toISOString(),
-    disputeReason: raw.dispute_reason ?? raw.reason ?? raw.disputeReason,
-    disputeEvidenceUrls:
-      raw.evidence_urls ?? raw.disputeEvidenceUrls ?? undefined,
+    status: (r.status as OrderStatus) ?? 'LOCKED',
+    paymentIntentId: r.payment_intent_id ?? r.paymentIntentId,
+    trackingCode: r.tracking_code ?? r.trackingCode,
+    deliveredAt: r.delivered_at ?? r.deliveredAt,
+    completedAt: r.completed_at ?? r.completedAt,
+    createdAt: r.created_at ?? r.createdAt ?? new Date().toISOString(),
+    disputeReason: r.dispute_reason ?? r.reason ?? r.disputeReason,
+    disputeEvidenceUrls: r.evidence_urls ?? r.disputeEvidenceUrls ?? undefined,
   };
 }
 
-export function normalizeDispute(raw: any): Dispute {
-  if (!raw) throw new Error('Dispute payload is null or undefined');
+export interface RawDispute {
+  id?: string | number;
+  order_id?: string | number;
+  orderId?: string | number;
+  resolution_status?: string;
+  decision?: string;
+  listing_title?: string;
+  listingTitle?: string;
+  listing_image?: string;
+  listingImage?: string;
+  buyer_wallet?: string;
+  buyerWallet?: string;
+  seller_wallet?: string;
+  sellerWallet?: string;
+  amount_lamports?: number | string;
+  amount_vnd?: number | string;
+  amountVnd?: number | string;
+  reason?: string;
+  evidence_urls?: string[];
+  evidence_url?: string;
+  chat_history?: Dispute['chatHistory'];
+  created_at?: string;
+  resolved_at?: string;
+}
+
+export function normalizeDispute(raw: unknown): Dispute {
+  if (!raw || typeof raw !== 'object') throw new Error('Dispute payload is null or undefined');
+  const r = raw as RawDispute;
 
   let status: DisputeStatus = 'OPEN';
-  if (raw.resolution_status === 'RESOLVED') {
+  if (r.resolution_status === 'RESOLVED') {
     status =
-      raw.decision === 'REFUND_TO_BUYER'
-        ? 'RESOLVED_BUYER'
-        : 'RESOLVED_SELLER';
-  } else if (raw.resolution_status === 'UNDER_REVIEW') {
+      r.decision === 'REFUND_TO_BUYER' ? 'RESOLVED_BUYER' : 'RESOLVED_SELLER';
+  } else if (r.resolution_status === 'UNDER_REVIEW') {
     status = 'UNDER_REVIEW';
   }
 
-  const orderId = String(raw.order_id ?? raw.orderId ?? '');
+  const orderId = String(r.order_id ?? r.orderId ?? '');
 
   return {
-    id: String(raw.id),
+    id: String(r.id),
     orderId,
     listingTitle:
-      raw.listing_title ??
-      raw.listingTitle ??
-      `Đơn hàng #${orderId.slice(-6)}`,
-    listingImage:
-      raw.listing_image ??
-      raw.listingImage ??
-      'https://images.unsplash.com/photo-1516035069371-29a1b244cc32?auto=format&fit=crop&w=600&q=80',
-    buyerWallet: raw.buyer_wallet ?? raw.buyerWallet ?? '',
-    sellerWallet: raw.seller_wallet ?? raw.sellerWallet ?? '',
-    amountVnd: Number(
-      raw.amount_lamports ?? raw.amount_vnd ?? raw.amountVnd ?? 0,
-    ),
-    reason: raw.reason || 'Tranh chấp sản phẩm không đúng mô tả',
-    evidenceUrls: Array.isArray(raw.evidence_urls)
-      ? raw.evidence_urls
-      : raw.evidence_url
-      ? [raw.evidence_url]
+      r.listing_title ?? r.listingTitle ?? `Đơn hàng #${orderId.slice(-6)}`,
+    listingImage: r.listing_image ?? r.listingImage ?? '',
+    buyerWallet: r.buyer_wallet ?? r.buyerWallet ?? '',
+    sellerWallet: r.seller_wallet ?? r.sellerWallet ?? '',
+    amountVnd: Number(r.amount_lamports ?? r.amount_vnd ?? r.amountVnd ?? 0),
+    reason: r.reason ?? '',
+    evidenceUrls: Array.isArray(r.evidence_urls)
+      ? r.evidence_urls
+      : r.evidence_url
+      ? [r.evidence_url]
       : [],
-    chatHistory: Array.isArray(raw.chat_history)
-      ? raw.chat_history
-      : [
-          {
-            sender: 'Buyer',
-            content: raw.reason || 'Sản phẩm có vấn đề khi nhận hàng',
-            createdAt: raw.created_at || '10:00',
-          },
-        ],
+    // No synthetic fallback — undefined if absent from payload
+    chatHistory: Array.isArray(r.chat_history) ? r.chat_history : undefined,
     status,
-    createdAt: raw.created_at ?? new Date().toISOString(),
-    resolvedAt: raw.resolved_at ?? undefined,
-    resolutionNote: raw.decision
-      ? `Đã phân xử: ${raw.decision}`
-      : undefined,
+    createdAt: r.created_at ?? new Date().toISOString(),
+    resolvedAt: r.resolved_at ?? undefined,
+    resolutionNote: r.decision ? `Đã phân xử: ${r.decision}` : undefined,
   };
 }
 
-export function normalizeConversation(raw: any): Conversation {
+export interface RawConversation {
+  id?: string | number;
+  buyer_wallet?: string;
+  buyerWallet?: string;
+  seller_wallet?: string;
+  sellerWallet?: string;
+  listing_id?: string | number;
+  listingId?: string | number;
+  listing_title?: string;
+  listingTitle?: string;
+  listing_image?: string;
+  listingImage?: string;
+  listing_price?: number | string;
+  listingPrice?: number | string;
+  last_message?: string;
+  lastMessage?: string;
+  last_message_at?: string;
+  lastMessageAt?: string;
+  unread_count?: number | string;
+  unreadCount?: number | string;
+  created_at?: string;
+  createdAt?: string;
+}
+
+export function normalizeConversation(raw: unknown): Conversation {
+  const r = (raw ?? {}) as RawConversation;
   return {
-    id: String(raw.id),
-    buyerWallet: raw.buyer_wallet ?? raw.buyerWallet ?? '',
-    sellerWallet: raw.seller_wallet ?? raw.sellerWallet ?? '',
-    listingId: raw.listing_id ? String(raw.listing_id) : undefined,
-    createdAt: raw.created_at ?? new Date().toISOString(),
+    id: String(r.id),
+    buyerWallet: r.buyer_wallet ?? r.buyerWallet ?? '',
+    sellerWallet: r.seller_wallet ?? r.sellerWallet ?? '',
+    listingId: r.listing_id ? String(r.listing_id) : r.listingId ? String(r.listingId) : undefined,
+    listingTitle: r.listing_title ?? r.listingTitle ?? undefined,
+    listingImage: r.listing_image ?? r.listingImage ?? undefined,
+    listingPrice: r.listing_price !== undefined ? Number(r.listing_price) : r.listingPrice !== undefined ? Number(r.listingPrice) : undefined,
+    lastMessage: r.last_message ?? r.lastMessage ?? undefined,
+    lastMessageAt: r.last_message_at ?? r.lastMessageAt ?? undefined,
+    unreadCount: r.unread_count !== undefined ? Number(r.unread_count) : r.unreadCount !== undefined ? Number(r.unreadCount) : undefined,
+    createdAt: r.created_at ?? r.createdAt ?? new Date().toISOString(),
   };
 }
 
-export function normalizeChatMessage(raw: any): ChatMessage {
+export interface RawChatMessage {
+  id?: string | number;
+  conversation_id?: string | number;
+  conversationId?: string | number;
+  sender_wallet?: string;
+  senderWallet?: string;
+  content?: string;
+  image_url?: string;
+  imageUrl?: string;
+  created_at?: string;
+  createdAt?: string;
+  is_read?: boolean;
+  isRead?: boolean;
+}
+
+export function normalizeChatMessage(raw: unknown): ChatMessage {
+  const r = (raw ?? {}) as RawChatMessage;
   return {
-    id: String(raw.id),
-    conversationId: String(raw.conversation_id ?? raw.conversationId),
-    senderWallet: raw.sender_wallet ?? raw.senderWallet ?? '',
-    content: raw.content ?? '',
-    createdAt: raw.created_at ?? raw.createdAt ?? new Date().toISOString(),
-    isRead: Boolean(raw.is_read ?? raw.isRead),
+    id: String(r.id),
+    conversationId: String(r.conversation_id ?? r.conversationId ?? ''),
+    senderWallet: r.sender_wallet ?? r.senderWallet ?? '',
+    content: r.content ?? '',
+    imageUrl: r.image_url ?? r.imageUrl ?? undefined,
+    createdAt: r.created_at ?? r.createdAt ?? new Date().toISOString(),
+    isRead: Boolean(r.is_read ?? r.isRead),
   };
 }
-

@@ -1,9 +1,10 @@
 'use client';
 
-import { use, useState, useEffect } from 'react';
+import { use, useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
+import { useQueryClient } from '@tanstack/react-query';
 import {
   ChevronLeft,
   Clock,
@@ -11,275 +12,242 @@ import {
   AlertTriangle,
   MessageCircle,
   ShieldCheck,
-  Package,
   RefreshCw,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import OrderStepper from '@/components/orders/OrderStepper';
 import DisputeModal from '@/components/orders/DisputeModal';
 import Header from '@/components/common/Header';
-import { formatVND } from '@/utils/formatCurrency';
-import { format48hCountdown } from '@/utils/formatTime';
-import { ordersApi } from '@/libs/api';
-import type { Order, OrderStatus } from '@/types/order';
+import { Money } from '@/domain/value-objects/Money';
+import { EscrowTimer } from '@/domain/value-objects/EscrowTimer';
+import { useOrderDetail, useConfirmOrder } from '@/hooks/useMarketplace';
+import { joinOrderRoom, leaveOrderRoom } from '@/libs/socket';
+import { Skeleton } from '@/components/ui/skeleton';
+
+function OrderDetailSkeleton() {
+  return (
+    <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-4">
+      <Skeleton className="h-8 w-40 rounded-xl" />
+      <Skeleton className="h-24 w-full rounded-3xl" />
+      <Skeleton className="h-48 w-full rounded-3xl" />
+    </div>
+  );
+}
 
 export default function OrderDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const resolvedParams = use(params);
+  const { id: orderId } = use(params);
   const router = useRouter();
-
-  const [order, setOrder] = useState<Order | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const queryClient = useQueryClient();
   const [isDisputeOpen, setIsDisputeOpen] = useState(false);
-  const [isCompleting, setIsCompleting] = useState(false);
-  const [timeLeft48h, setTimeLeft48h] = useState(48 * 3600);
+  const [countdownStr, setCountdownStr] = useState<string>('--:--:--');
 
-  const loadOrder = async () => {
-    try {
-      setLoading(true);
-      setErrorMsg(null);
-      const data = await ordersApi.get(resolvedParams.id, true);
-      if (data && data.id) {
-        setOrder(data);
+  const {
+    data: order,
+    isLoading,
+    isError,
+    error,
+    refetch,
+  } = useOrderDetail(orderId);
 
-        // Calculate actual remaining 48h if delivered
-        if (data.deliveredAt) {
-          const elapsedSec = (Date.now() - new Date(data.deliveredAt).getTime()) / 1000;
-          const remain = Math.max(0, Math.floor(48 * 3600 - elapsedSec));
-          setTimeLeft48h(remain);
-        }
-      } else {
-        setErrorMsg('Không tìm thấy đơn hàng trên hệ thống');
-      }
-    } catch (err: any) {
-      setErrorMsg(err?.message || 'Lỗi khi tải thông tin đơn hàng');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { mutate: confirmOrder, isPending: isConfirming } = useConfirmOrder();
+
+  // EscrowTimer countdown for 48h
+  useEffect(() => {
+    if (!order?.deliveredAt || order.status !== 'DELIVERED') return;
+    const deliveredDate = new Date(order.deliveredAt);
+    const targetDate = new Date(deliveredDate.getTime() + 172800 * 1000);
+    const timer = new EscrowTimer(targetDate);
+
+    const update = () => {
+      setCountdownStr(timer.formatCountdown());
+    };
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [order?.deliveredAt, order?.status]);
 
   useEffect(() => {
-    loadOrder();
-  }, [resolvedParams.id]);
+    if (isError && error) {
+      const msg = (error as any)?.response?.data?.message ?? (error as Error)?.message ?? 'Lỗi khi tải đơn hàng';
+      toast.error(msg);
+    }
+  }, [isError, error]);
 
-  // 48h Countdown Ticker
   useEffect(() => {
-    if (!order || order.status !== 'DELIVERED') return;
+    const socket = joinOrderRoom(orderId);
+    const handler = () => {
+      queryClient.invalidateQueries({ queryKey: ['order', orderId] });
+    };
+    socket.on('ORDER_STATUS_UPDATED', handler);
+    return () => {
+      socket.off('ORDER_STATUS_UPDATED', handler);
+      leaveOrderRoom(orderId);
+    };
+  }, [orderId, queryClient]);
 
-    const timer = setInterval(() => {
-      setTimeLeft48h((prev) => {
-        if (prev <= 1) {
-          clearInterval(timer);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-
-    return () => clearInterval(timer);
-  }, [order]);
-
-  const handleConfirmReceived = async () => {
-    if (!order) return;
-    setIsCompleting(true);
-    try {
-      const updated = await ordersApi.complete(order.id);
-      setOrder(updated);
-    } catch (err: any) {
-      alert('Không thể hoàn tất đơn hàng: ' + (err?.message || 'Lỗi'));
-    } finally {
-      setIsCompleting(false);
-    }
-  };
-
-  const handleDisputeSubmit = async (reason: string, evidenceUrls: string[]) => {
-    if (!order) return;
-    try {
-      const updated = await ordersApi.raiseDispute(order.id, reason, evidenceUrls);
-      setOrder(updated);
-      setIsDisputeOpen(false);
-    } catch (err: any) {
-      alert('Lỗi gửi khiếu nại: ' + (err?.message || 'Lỗi'));
-    }
-  };
-
-  if (loading) {
+  if (isLoading) {
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-[#fafafa]">
         <Header showLocation={false} />
-        <div className="max-w-4xl mx-auto p-4 sm:p-6 space-y-4">
-          <div className="skeleton h-8 w-40 rounded-xl" />
-          <div className="skeleton h-24 w-full rounded-3xl" />
-          <div className="skeleton h-48 w-full rounded-3xl" />
-        </div>
+        <OrderDetailSkeleton />
       </div>
     );
   }
 
-  if (errorMsg || !order) {
+  if (isError || !order) {
+    const msg = (error as any)?.response?.data?.message ?? (error as Error)?.message ?? 'Không tìm thấy đơn hàng';
     return (
-      <div className="min-h-screen bg-slate-50">
+      <div className="min-h-screen bg-[#fafafa]">
         <Header showLocation={false} />
-        <div className="max-w-md mx-auto my-16 bg-white rounded-3xl p-8 border border-slate-100 shadow-xs text-center">
+        <div className="max-w-md mx-auto my-16 rounded-3xl border border-neutral-200 bg-white p-8 shadow-sm text-center">
           <p className="text-4xl mb-3">⚠️</p>
-          <h2 className="text-lg font-bold text-slate-800">
-            {errorMsg || 'Không tìm thấy đơn hàng'}
-          </h2>
-          <p className="text-xs text-slate-500 mt-1 mb-6">
-            Mã đơn hàng không hợp lệ hoặc đã bị xóa.
-          </p>
+          <h2 className="text-base font-bold text-neutral-800">{msg}</h2>
+          <p className="text-xs text-neutral-500 mt-1 mb-6">Mã đơn hàng không hợp lệ hoặc đã bị xóa.</p>
+          <button
+            onClick={() => refetch()}
+            className="mr-3 inline-flex items-center gap-1.5 rounded-xl border border-neutral-200 px-4 py-2.5 text-xs font-semibold text-neutral-700 hover:bg-neutral-50"
+          >
+            <RefreshCw className="h-3.5 w-3.5" /> Thử lại
+          </button>
           <Link
             href="/orders"
-            className="gradient-primary rounded-xl px-5 py-2.5 text-xs font-bold text-white shadow-md shadow-emerald-200"
+            className="inline-block rounded-xl bg-neutral-900 px-5 py-2.5 text-xs font-bold text-white"
           >
-            Quay lại danh sách đơn
+            Danh sách đơn hàng
           </Link>
         </div>
       </div>
     );
   }
 
+  const moneyVnd = new Money(order.amountVnd, 'VND');
+  const moneySol = moneyVnd.amount > 0 ? moneyVnd.toSolEquivalent(3500000) : new Money(0, 'SOL');
+  const vaultPda = `Vault48h_${order.id.slice(0, 8)}...${order.id.slice(-6)}`;
+
   return (
-    <div className="min-h-screen bg-slate-50 pb-28 md:pb-12">
+    <div className="min-h-screen bg-[#fafafa] pb-28 md:pb-12">
       <Header showLocation={false} title={`Đơn hàng #${order.id.slice(-6)}`} />
 
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-4 sm:py-6 space-y-6">
-        {/* Back link & actions */}
+        {/* Top breadcrumb & chat */}
         <div className="flex items-center justify-between">
           <button
             onClick={() => router.push('/orders')}
-            className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-600 hover:text-emerald-600 transition"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold text-neutral-600 hover:text-neutral-900 transition"
           >
             <ChevronLeft className="h-4 w-4" />
-            <span>Danh sách đơn hàng</span>
+            Danh sách đơn hàng
           </button>
+
           <Link
-            href={`/chat?listingId=${order.listingId}`}
-            className="inline-flex items-center gap-1.5 text-xs font-bold text-emerald-600 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-200 hover:bg-emerald-100 transition"
+            href={`/chat?listingId=${order.listingId}&seller=${order.sellerWallet}`}
+            className="inline-flex items-center gap-1.5 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700 hover:bg-emerald-100 transition"
           >
             <MessageCircle className="h-4 w-4" />
-            <span>Chat với đối tác</span>
+            Chat với đối tác
           </Link>
         </div>
 
-        {/* Order Stepper */}
+        {/* 4-Step Stepper */}
         <OrderStepper status={order.status} />
 
         <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-          {/* Left Column (Details, 48h Banner, Dispute info) */}
+          {/* Left Column */}
           <div className="md:col-span-7 space-y-4">
-            {/* 48h Inspection Banner (Visible when DELIVERED) */}
+            {/* 48h Countdown Callout */}
             {order.status === 'DELIVERED' && (
-              <div className="rounded-3xl border border-emerald-200 bg-gradient-to-br from-emerald-50 to-teal-50 p-5 shadow-xs animate-pulse-glow">
+              <div className="rounded-2xl border border-amber-200 bg-amber-50/90 p-5 shadow-xs">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <Clock className="h-5 w-5 text-emerald-600 animate-spin" style={{ animationDuration: '6s' }} />
-                    <span className="text-xs font-bold text-emerald-900">
-                      Thời gian kiểm hàng còn lại:
-                    </span>
+                    <Clock className="h-5 w-5 text-amber-700" />
+                    <span className="text-xs font-bold text-amber-900">Thời gian kiểm hàng còn lại:</span>
                   </div>
-                  <span className="font-mono text-base font-black text-emerald-700 bg-white px-3 py-1 rounded-xl border border-emerald-200 shadow-2xs">
-                    {format48hCountdown(timeLeft48h)}
+                  <span className="font-mono text-sm font-extrabold px-3 py-1 rounded-xl border border-amber-200 bg-white text-amber-800 shadow-2xs">
+                    {countdownStr}
                   </span>
                 </div>
-                <p className="mt-2 text-xs text-emerald-800 leading-relaxed">
-                  Bạn có <strong>48 giờ</strong> để kiểm tra kỹ sản phẩm. Nếu đúng mô tả, hãy bấm <em>Đã nhận đúng hàng</em> để giải ngân. Nếu phát hiện lỗi, bạn có quyền khiếu nại để nhận lại 100% tiền.
+                <p className="mt-2 text-xs text-amber-800 leading-relaxed">
+                  Bạn có <strong>48 giờ</strong> để kiểm tra kỹ sản phẩm. Nếu đúng mô tả, bấm <em>Đã nhận đúng hàng</em> để giải ngân. Nếu có vấn đề, bạn có quyền khiếu nại.
                 </p>
               </div>
             )}
 
-            {/* Dispute Details if DISPUTED */}
+            {/* Disputed banner */}
             {order.status === 'DISPUTED' && (
-              <div className="bg-white rounded-3xl p-5 border border-red-200 space-y-3 shadow-xs">
-                <div className="flex items-center gap-2 text-red-600">
+              <div className="rounded-2xl border border-rose-200 bg-white p-5 space-y-3 shadow-xs">
+                <div className="flex items-center gap-2 text-rose-600">
                   <AlertTriangle className="h-5 w-5" />
-                  <h4 className="text-sm font-bold">Đơn hàng đang có tranh chấp</h4>
+                  <h4 className="text-sm font-bold">Đang chờ Trọng tài phân xử</h4>
                 </div>
-                <p className="text-xs text-slate-700 bg-red-50/60 p-3.5 rounded-2xl border border-red-100">
-                  &ldquo;{order.disputeReason || 'Sản phẩm phát sinh lỗi hoặc không đúng mô tả khi nhận hàng.'}&rdquo;
+                <p className="text-xs text-neutral-700 rounded-xl border border-rose-100 bg-rose-50/60 p-3.5">
+                  &ldquo;{order.disputeReason || 'Sản phẩm phát sinh lỗi hoặc không đúng mô tả.'}&rdquo;
                 </p>
-                <Link
-                  href="/admin/disputes"
-                  className="block text-center text-xs font-bold text-indigo-600 hover:underline pt-1"
-                >
-                  👉 Mở Cổng Trọng Tài Phân Xử để kiểm tra tiến trình
+                <Link href="/admin/disputes" className="block text-center text-xs font-bold text-neutral-900 hover:underline pt-1">
+                  Mở Cổng Trọng Tài để kiểm tra tiến trình →
                 </Link>
               </div>
             )}
 
-            {/* Completed Note */}
+            {/* Completed banner */}
             {order.status === 'COMPLETED' && (
-              <div className="bg-emerald-50 rounded-3xl p-5 border border-emerald-200 text-center space-y-1 shadow-xs">
+              <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-5 text-center space-y-1 shadow-xs">
                 <CheckCircle className="h-8 w-8 text-emerald-500 mx-auto" />
-                <h4 className="text-sm font-bold text-emerald-900">Giao dịch đã hoàn tất!</h4>
-                <p className="text-xs text-emerald-700">
-                  Tiền ký quỹ đã được giải ngân chuyển cho người bán. Hợp đồng ký quỹ hoàn thành.
-                </p>
+                <h4 className="text-sm font-bold text-emerald-900">Giao dịch hoàn tất!</h4>
+                <p className="text-xs text-emerald-700">Tiền ký quỹ đã được giải ngân an toàn cho người bán.</p>
               </div>
             )}
 
-            {/* Contract Info Card */}
-            <div className="bg-white rounded-3xl p-5 shadow-xs border border-slate-100 space-y-3">
-              <h4 className="text-xs font-bold uppercase tracking-wider text-slate-500">
-                Thông tin Hợp đồng Ký quỹ
-              </h4>
-              <div className="space-y-2 text-xs divide-y divide-slate-50">
-                <div className="flex justify-between py-1">
-                  <span className="text-slate-500">Mã đơn hàng:</span>
-                  <span className="font-mono font-bold text-slate-800">#{order.id}</span>
+            {/* On-chain Receipt Box */}
+            <div className="rounded-2xl border border-neutral-800 bg-neutral-900 text-neutral-100 p-5 shadow-sm space-y-3 font-mono text-xs">
+              <div className="flex items-center justify-between border-b border-neutral-800 pb-2">
+                <span className="text-neutral-400 font-sans text-xs font-bold">Chứng nhận Hợp đồng Ký quỹ</span>
+                <span className="inline-flex items-center gap-1 rounded bg-emerald-950 px-2.5 py-0.5 text-[10px] font-semibold text-emerald-400 border border-emerald-800">
+                  <ShieldCheck className="h-3.5 w-3.5" />
+                  LOCKED_IN_ESCROW
+                </span>
+              </div>
+              <div className="space-y-2 text-[11px]">
+                <div className="flex justify-between">
+                  <span className="text-neutral-400">Mã đơn hàng:</span>
+                  <span className="text-white">#{order.id}</span>
                 </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-slate-500">Ví người mua:</span>
-                  <span className="font-mono text-slate-700 truncate max-w-[200px]">
-                    {order.buyerWallet}
-                  </span>
+                <div className="flex justify-between">
+                  <span className="text-neutral-400">Vault PDA:</span>
+                  <span className="text-emerald-400">{vaultPda}</span>
                 </div>
-                <div className="flex justify-between py-1">
-                  <span className="text-slate-500">Ví người bán:</span>
-                  <span className="font-mono text-slate-700 truncate max-w-[200px]">
-                    {order.sellerWallet}
-                  </span>
+                <div className="flex justify-between">
+                  <span className="text-neutral-400">Ký quỹ VNĐ:</span>
+                  <span className="text-white">{moneyVnd.format()}</span>
                 </div>
-                {order.trackingCode && (
-                  <div className="flex justify-between py-1">
-                    <span className="text-slate-500">Mã vận đơn:</span>
-                    <span className="font-mono font-bold text-emerald-600">
-                      {order.trackingCode}
-                    </span>
-                  </div>
-                )}
-                <div className="flex justify-between py-1">
-                  <span className="text-slate-500">Thời gian tạo:</span>
-                  <span className="text-slate-700">
-                    {new Date(order.createdAt).toLocaleString('vi-VN')}
-                  </span>
+                <div className="flex justify-between">
+                  <span className="text-neutral-400">Tương đương SOL:</span>
+                  <span className="text-neutral-300">{moneySol.format()}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-neutral-400">Thời gian tạo:</span>
+                  <span className="text-neutral-300">{new Date(order.createdAt).toLocaleString('vi-VN')}</span>
                 </div>
               </div>
             </div>
           </div>
 
-          {/* Right Column: Item Summary & Actions */}
+          {/* Right Column */}
           <div className="md:col-span-5 space-y-4">
-            <div className="bg-white rounded-3xl p-5 shadow-xs border border-slate-100 flex gap-4">
-              <div className="relative h-20 w-20 shrink-0 rounded-2xl overflow-hidden bg-slate-100 border border-slate-200">
-                <Image
-                  src={order.listingImage}
-                  alt={order.listingTitle}
-                  fill
-                  className="object-cover"
-                />
-              </div>
+            {/* Product Card */}
+            <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-xs flex gap-4">
+              {order.listingImage && (
+                <div className="relative h-20 w-20 shrink-0 overflow-hidden rounded-xl border border-neutral-200 bg-neutral-100">
+                  <Image src={order.listingImage} alt={order.listingTitle} fill className="object-cover" />
+                </div>
+              )}
               <div className="flex-1 min-w-0 flex flex-col justify-between">
-                <h3 className="text-xs font-bold text-slate-800 line-clamp-2">
-                  {order.listingTitle}
-                </h3>
+                <h3 className="text-xs font-bold text-neutral-900 line-clamp-2">{order.listingTitle}</h3>
                 <div className="flex items-baseline justify-between mt-2">
-                  <span className="text-base font-black text-emerald-600">
-                    {formatVND(order.amountVnd)}
-                  </span>
+                  <span className="text-base font-extrabold text-emerald-600 font-sans">{moneyVnd.format()}</span>
                   <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
                     Ký quỹ an toàn
                   </span>
@@ -287,23 +255,25 @@ export default function OrderDetailPage({
               </div>
             </div>
 
-            {/* Desktop Actions */}
+            {/* Dual Actions for DELIVERED status */}
             {order.status === 'DELIVERED' && (
-              <div className="bg-white rounded-3xl p-5 shadow-xs border border-slate-100 space-y-3">
-                <h4 className="text-xs font-bold text-slate-800">Thao tác người mua</h4>
+              <div className="rounded-2xl border border-neutral-200 bg-white p-5 shadow-xs space-y-3">
+                <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Thao tác người mua</h4>
                 <button
-                  onClick={handleConfirmReceived}
-                  disabled={isCompleting}
-                  className="gradient-primary w-full rounded-2xl py-3 text-xs font-bold text-white shadow-md shadow-emerald-200 transition hover:opacity-95 active:scale-98 disabled:opacity-50 flex items-center justify-center gap-1.5"
+                  type="button"
+                  onClick={() => confirmOrder(order.id)}
+                  disabled={isConfirming}
+                  className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-emerald-600 py-3 text-xs font-bold text-white shadow-md transition hover:bg-emerald-700 disabled:opacity-50"
                 >
                   <CheckCircle className="h-4 w-4" />
-                  <span>{isCompleting ? 'Đang xử lý...' : 'Đã nhận đúng hàng (Giải ngân)'}</span>
+                  {isConfirming ? 'Đang giải ngân...' : 'Đã nhận đúng hàng (Giải ngân)'}
                 </button>
                 <button
+                  type="button"
                   onClick={() => setIsDisputeOpen(true)}
-                  className="w-full rounded-2xl border border-red-200 bg-red-50/70 py-2.5 text-xs font-bold text-red-600 hover:bg-red-100 transition"
+                  className="w-full rounded-xl border border-rose-200 bg-rose-50/70 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-100 transition"
                 >
-                  Yêu cầu Khiếu nại / Trả hàng
+                  Khiếu nại / Báo lỗi
                 </button>
               </div>
             )}
@@ -311,33 +281,10 @@ export default function OrderDetailPage({
         </div>
       </main>
 
-      {/* Mobile Fixed Bottom Action Bar */}
-      {order.status === 'DELIVERED' && (
-        <div className="md:hidden fixed bottom-0 left-0 right-0 z-50 glass border-t border-slate-200/80 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
-          <div className="max-w-lg mx-auto flex items-center gap-3">
-            <button
-              onClick={() => setIsDisputeOpen(true)}
-              className="rounded-xl border border-red-200 bg-red-50/70 px-4 py-3 text-xs font-bold text-red-600 hover:bg-red-100 transition active:scale-95"
-            >
-              Khiếu nại
-            </button>
-            <button
-              onClick={handleConfirmReceived}
-              disabled={isCompleting}
-              className="flex-1 gradient-primary rounded-xl py-3 text-xs font-bold text-white shadow-lg shadow-emerald-200 transition active:scale-95 disabled:opacity-50 flex items-center justify-center gap-1.5"
-            >
-              <CheckCircle className="h-4 w-4" />
-              <span>{isCompleting ? 'Đang xử lý...' : 'Đã nhận đúng hàng'}</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Dispute Modal */}
+      {/* Dispute modal */}
       <DisputeModal
         isOpen={isDisputeOpen}
         onClose={() => setIsDisputeOpen(false)}
-        onSubmit={handleDisputeSubmit}
         orderId={order.id}
       />
     </div>

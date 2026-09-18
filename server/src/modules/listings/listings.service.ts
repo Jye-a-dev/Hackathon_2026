@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, Logger } from '@nestjs/common';
 import { DatabaseService } from '../../database/database.service';
 import { CreateListingDto } from './dto/create-listing.dto';
+import { UpdateListingDto } from './dto/update-listing.dto';
 import { QueryListingDto } from './dto/query-listing.dto';
 
 export interface ListingEntity {
@@ -162,6 +163,71 @@ export class ListingsService {
     return res.rows[0];
   }
 
+  async update(id: string, dto: UpdateListingDto): Promise<ListingEntity> {
+    await this.findOne(id);
+
+    const updates: string[] = ['updated_at = NOW()'];
+    const params: any[] = [id];
+    let idx = 2;
+
+    if (dto.title !== undefined) {
+      updates.push(`title = $${idx++}`);
+      params.push(dto.title);
+    }
+    if (dto.description !== undefined) {
+      updates.push(`description = $${idx++}`);
+      params.push(dto.description || null);
+    }
+    if (dto.priceVnd !== undefined) {
+      updates.push(`price_vnd = $${idx++}`);
+      params.push(dto.priceVnd);
+    }
+    if (dto.priceSol !== undefined) {
+      updates.push(`price_sol = $${idx++}`);
+      params.push(dto.priceSol || null);
+    }
+    if (dto.category !== undefined) {
+      updates.push(`category = $${idx++}`);
+      params.push(dto.category);
+    }
+    if (dto.condition !== undefined) {
+      updates.push(`condition = $${idx++}`);
+      params.push(dto.condition);
+    }
+    if (dto.images !== undefined) {
+      updates.push(`images = $${idx++}`);
+      params.push(dto.images);
+    }
+    if (dto.locationName !== undefined) {
+      updates.push(`location_name = $${idx++}`);
+      params.push(dto.locationName || null);
+    }
+    if (dto.latitude !== undefined) {
+      updates.push(`latitude = $${idx++}`);
+      params.push(dto.latitude);
+    }
+    if (dto.longitude !== undefined) {
+      updates.push(`longitude = $${idx++}`);
+      params.push(dto.longitude);
+    }
+    if (dto.status !== undefined) {
+      updates.push(`status = $${idx++}`);
+      params.push(dto.status);
+    }
+
+    const sql = `
+      UPDATE listings
+      SET ${updates.join(', ')}
+      WHERE id = $1
+      RETURNING *;
+    `;
+    const res = await this.db.query<ListingEntity>(sql, params);
+    if (!res.rows[0]) {
+      throw new NotFoundException(`Listing #${id} not found`);
+    }
+    return res.rows[0];
+  }
+
   async updateStatus(id: string, status: string): Promise<ListingEntity> {
     const res = await this.db.query<ListingEntity>(
       'UPDATE listings SET status = $2, updated_at = NOW() WHERE id = $1 RETURNING *;',
@@ -173,3 +239,4 @@ export class ListingsService {
     return res.rows[0];
   }
 }
+

@@ -11,6 +11,7 @@ import {
 } from '@nestjs/common';
 import { ListingsService } from './listings.service';
 import { CreateListingDto } from './dto/create-listing.dto';
+import { UpdateListingDto } from './dto/update-listing.dto';
 import { QueryListingDto } from './dto/query-listing.dto';
 
 @Controller('listings')
@@ -33,8 +34,14 @@ export class ListingsController {
     return this.listingsService.findOne(id);
   }
 
+  @Patch(':id')
+  update(@Param('id') id: string, @Body() dto: UpdateListingDto) {
+    return this.listingsService.update(id, dto);
+  }
+
   @Patch(':id/status')
   updateStatus(@Param('id') id: string, @Body('status') status: string) {
     return this.listingsService.updateStatus(id, status);
   }
 }
+

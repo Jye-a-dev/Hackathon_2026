@@ -4,7 +4,7 @@ import Providers from "@/app/providers";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Chợ Ký Quỹ - Mua Bán P2P An Toàn Bảo Vệ 48h",
+  title: "TrustPass - Mua Bán P2P An Toàn Bảo Vệ 48h",
   description: "Nền tảng mua bán đồ cũ an toàn với cơ chế Ký quỹ bảo vệ 48h, thanh toán VietQR tiện lợi 100% VNĐ.",
 };
 

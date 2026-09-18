@@ -1,40 +1,65 @@
+// ─────────────────────────────────────────────
+// store/useAuthStore.ts — JWT-based auth state
+// ─────────────────────────────────────────────
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 
+export interface CurrentUser {
+  id: string;
+  username: string;
+  avatarUrl?: string;
+  rating: number;
+  role: 'USER' | 'ADMIN' | 'ARBITER';
+  email?: string;
+}
+
 interface AuthState {
-  wallet: string | null;       // Dùng mock wallet address để định danh user
-  username: string | null;
-  avatarUrl: string | null;
+  jwtToken: string | null;
+  user: CurrentUser | null;
   isLoggedIn: boolean;
   // Actions
-  login: (wallet: string, username: string, avatarUrl?: string) => void;
+  login: (token: string) => void;
+  setUser: (user: CurrentUser) => void;
   logout: () => void;
 }
+
+const TOKEN_KEY = 'kyquy_token';
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
-      wallet: null,
-      username: null,
-      avatarUrl: null,
+      jwtToken: null,
+      user: null,
       isLoggedIn: false,
-      login: (wallet, username, avatarUrl) =>
-        set({ wallet, username, avatarUrl: avatarUrl ?? null, isLoggedIn: true }),
-      logout: () =>
-        set({ wallet: null, username: null, avatarUrl: null, isLoggedIn: false }),
+
+      login: (token: string) => {
+        if (typeof window !== 'undefined') {
+          localStorage.setItem(TOKEN_KEY, token);
+        }
+        set({ jwtToken: token, isLoggedIn: true });
+      },
+
+      setUser: (user: CurrentUser) => set({ user }),
+
+      logout: () => {
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem(TOKEN_KEY);
+        }
+        set({ jwtToken: null, user: null, isLoggedIn: false });
+      },
     }),
-    { name: 'auth-storage' },
+    {
+      name: 'auth-storage',
+      // Only persist the token — user info is always re-fetched from /users/me
+      partialize: (state) => ({ jwtToken: state.jwtToken, isLoggedIn: state.isLoggedIn }),
+    },
   ),
 );
 
-// Mock auto-login cho demo
+// Sync localStorage → Zustand on hydration (handles page refresh)
 if (typeof window !== 'undefined') {
-  const store = useAuthStore.getState();
-  if (!store.isLoggedIn) {
-    store.login(
-      'demo_wallet_abc123',
-      'Minh Tuấn',
-      'https://api.dicebear.com/9.x/avataaars/svg?seed=MinhTuan',
-    );
+  const stored = localStorage.getItem(TOKEN_KEY);
+  if (stored) {
+    useAuthStore.getState().login(stored);
   }
 }

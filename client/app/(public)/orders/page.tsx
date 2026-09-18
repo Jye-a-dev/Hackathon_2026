@@ -23,7 +23,7 @@ const statusBadge: Record<OrderStatus, { text: string; color: string }> = {
 };
 
 export default function OrdersPage() {
-  const { wallet } = useAuthStore();
+  const { user } = useAuthStore();
   const [tab, setTab] = useState<'BUY' | 'SELL'>('BUY');
   const [orders, setOrders] = useState<Order[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,11 +44,11 @@ export default function OrdersPage() {
 
   useEffect(() => {
     fetchOrders();
-  }, [wallet]);
+  }, [user?.id]);
 
   const filteredOrders = orders.filter((o) => {
     if (tab === 'SELL') {
-      return wallet ? o.sellerWallet.toLowerCase() === wallet.toLowerCase() : true;
+      return user?.id ? o.sellerWallet.toLowerCase() === user.id.toLowerCase() : true;
     }
     return true; // Show buyer / all orders
   });
@@ -78,7 +78,7 @@ export default function OrdersPage() {
                 : 'text-slate-600 hover:text-slate-900'
             }`}
           >
-            Đơn bán ({orders.filter((o) => o.sellerWallet === wallet).length})
+            Đơn bán ({orders.filter((o) => user?.id && o.sellerWallet === user.id).length})
           </button>
         </div>
 

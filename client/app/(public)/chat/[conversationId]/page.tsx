@@ -1,6 +1,6 @@
 'use client';
 
-import { use, useState, useEffect, useRef } from 'react';
+import { use, useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Image from 'next/image';
 import Link from 'next/link';
@@ -8,19 +8,16 @@ import {
   ChevronLeft,
   ShieldCheck,
   Send,
-  Image as ImageIcon,
-  CheckCheck,
   ArrowRight,
+  Package,
 } from 'lucide-react';
 import type { Socket } from 'socket.io-client';
-import { formatVND } from '@/utils/formatCurrency';
+import { Money } from '@/domain/value-objects/Money';
 import { getChatSocket } from '@/libs/socket';
 import { chatApi, listingsApi } from '@/libs/api';
 import { useAuthStore } from '@/store/useAuthStore';
 import type { ChatMessage } from '@/types/chat';
 import type { Listing } from '@/types/listing';
-
-import { Suspense } from 'react';
 
 function DirectChatContent({
   params,
@@ -30,9 +27,9 @@ function DirectChatContent({
   const resolvedParams = use(params);
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { wallet } = useAuthStore();
+  const { user } = useAuthStore();
 
-  const currentWallet = wallet || 'BuyerMockWallet4752331111111111111111111';
+  const currentWallet = user?.id ?? '';
   const listingId = searchParams.get('listingId');
   const sellerParam = searchParams.get('seller');
 
@@ -51,7 +48,6 @@ function DirectChatContent({
     scrollToBottom();
   }, [messages]);
 
-  // Load real messages & real listing
   useEffect(() => {
     async function initChat() {
       try {
@@ -73,7 +69,6 @@ function DirectChatContent({
     void initChat();
   }, [resolvedParams.conversationId, listingId]);
 
-  // Socket.io integration
   useEffect(() => {
     let socket: Socket | null = null;
     try {
@@ -83,9 +78,15 @@ function DirectChatContent({
         conversationId: resolvedParams.conversationId,
       });
 
-      socket.on('new_message', (msg: ChatMessage) => {
-        setMessages((prev) => [...prev, msg]);
-      });
+      const handleNewMessage = (msg: ChatMessage) => {
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === msg.id)) return prev;
+          return [...prev, msg];
+        });
+      };
+
+      socket.on('receive_message', handleNewMessage);
+      socket.on('new_message', handleNewMessage);
 
       socket.on('partner_typing', () => {
         setIsTyping(true);
@@ -97,6 +98,7 @@ function DirectChatContent({
 
     return () => {
       if (socket) {
+        socket.off('receive_message');
         socket.off('new_message');
         socket.off('partner_typing');
         socket.disconnect();
@@ -122,9 +124,9 @@ function DirectChatContent({
       const socket = getChatSocket();
       socket.emit('send_message', savedMsg);
     } catch {
-      // Optimistic fallback
+      // Optimistic message
       const fallbackMsg: ChatMessage = {
-        id: `msg-${Date.now()}`,
+        id: `msg-${resolvedParams.conversationId}-${messages.length + 1}`,
         conversationId: resolvedParams.conversationId,
         senderWallet: currentWallet,
         content,
@@ -134,79 +136,83 @@ function DirectChatContent({
     }
   };
 
-  const partnerWallet = sellerParam || 'SellerMockWallet47523322222222222222222';
+  const partnerWallet = sellerParam || listing?.seller?.id || 'Người bán';
   const partnerName =
     partnerWallet.length > 12
       ? `${partnerWallet.slice(0, 6)}...${partnerWallet.slice(-4)}`
       : partnerWallet;
 
+  const priceFormatted = listing ? new Money(listing.price, 'VND').format() : null;
+
   return (
-    <div className="flex flex-col h-screen bg-slate-50">
+    <div className="flex flex-col h-screen bg-[#fafafa]">
       {/* Top Header */}
-      <header className="sticky top-0 z-40 flex items-center justify-between glass px-4 py-3 border-b border-slate-100 max-w-4xl mx-auto w-full">
+      <header className="sticky top-0 z-40 flex items-center justify-between bg-white/90 backdrop-blur-md px-4 py-3 border-b border-neutral-200 max-w-4xl mx-auto w-full">
         <div className="flex items-center gap-2.5">
           <button
             onClick={() => router.push('/chat')}
             aria-label="Quay lại"
-            className="flex h-9 w-9 items-center justify-center rounded-xl bg-white shadow-xs hover:bg-slate-100 text-slate-700 transition"
+            className="flex h-9 w-9 items-center justify-center rounded-xl bg-neutral-100 hover:bg-neutral-200 text-neutral-700 transition"
           >
             <ChevronLeft className="h-5 w-5" />
           </button>
           <div className="relative">
-            <Image
-              src={`https://api.dicebear.com/9.x/avataaars/svg?seed=${partnerWallet}`}
-              alt="Partner"
-              width={38}
-              height={38}
-              className="rounded-full ring-2 ring-emerald-500/20 object-cover bg-slate-100"
-            />
+            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-neutral-900 text-xs font-bold text-white">
+              {partnerName.slice(0, 1).toUpperCase()}
+            </div>
             <span className="absolute bottom-0 right-0 h-2.5 w-2.5 rounded-full bg-emerald-500 ring-2 ring-white" />
           </div>
           <div>
             <div className="flex items-center gap-1">
-              <span className="text-xs font-bold text-slate-900">{partnerName}</span>
+              <span className="text-xs font-bold text-neutral-900">{partnerName}</span>
               <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
             </div>
-            <span className="text-[10px] text-emerald-600 font-medium">Đang hoạt động</span>
+            <span className="text-[10px] text-emerald-600 font-medium">Đang trực tuyến</span>
           </div>
         </div>
 
         {listing && (
           <Link
             href={`/listings/${listing.id}`}
-            className="gradient-primary rounded-xl px-3 py-1.5 text-xs font-bold text-white shadow-xs hover:opacity-90 flex items-center gap-1"
+            className="rounded-full bg-neutral-900 px-3.5 py-1.5 text-xs font-bold text-white shadow-xs hover:bg-neutral-800 flex items-center gap-1 transition"
           >
-            <span>Mua Ký quỹ</span>
-            <ArrowRight className="h-3.5 w-3.5" />
+            <span>Mua Ký Quỹ</span>
+            <ArrowRight className="h-3.5 w-3.5 text-emerald-400" />
           </Link>
         )}
       </header>
 
-      {/* Pinned Listing Context Banner if present */}
+      {/* Pinned Context Banner */}
       {listing && (
-        <div className="bg-white border-b border-slate-200/80 p-3 shadow-2xs max-w-4xl mx-auto w-full flex items-center justify-between gap-3">
+        <div className="bg-white border-b border-neutral-200/80 p-3 max-w-4xl mx-auto w-full flex items-center justify-between gap-3 shadow-2xs">
           <div className="flex items-center gap-3 min-w-0">
-            <div className="relative h-12 w-12 shrink-0 rounded-xl overflow-hidden bg-slate-100 border border-slate-100">
-              <Image
-                src={listing.images[0]}
-                alt={listing.title}
-                fill
-                className="object-cover"
-              />
+            <div className="relative h-12 w-12 shrink-0 rounded-xl overflow-hidden bg-neutral-100 border border-neutral-200">
+              {listing.images && listing.images[0] ? (
+                <Image
+                  src={listing.images[0]}
+                  alt={listing.title}
+                  fill
+                  className="object-cover"
+                />
+              ) : (
+                <div className="flex h-full w-full items-center justify-center text-neutral-400">
+                  <Package className="h-5 w-5" />
+                </div>
+              )}
             </div>
             <div className="min-w-0">
-              <p className="text-xs font-bold text-slate-800 truncate">
+              <p className="text-xs font-bold text-neutral-900 truncate">
                 {listing.title}
               </p>
-              <p className="text-xs font-black text-emerald-600">
-                {formatVND(listing.price)}
+              <p className="text-xs font-extrabold text-emerald-600 font-sans">
+                {priceFormatted}
               </p>
             </div>
           </div>
 
           <Link
             href={`/listings/${listing.id}`}
-            className="shrink-0 rounded-lg bg-slate-100 px-2.5 py-1 text-[11px] font-semibold text-slate-600 hover:bg-slate-200"
+            className="shrink-0 rounded-lg bg-neutral-100 px-3 py-1.5 text-[11px] font-semibold text-neutral-700 hover:bg-neutral-200 transition"
           >
             Xem tin
           </Link>
@@ -216,31 +222,34 @@ function DirectChatContent({
       {/* Message List */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 max-w-4xl mx-auto w-full">
         {loading ? (
-          <div className="p-8 text-center text-xs text-slate-400">
+          <div className="p-8 text-center text-xs text-neutral-400">
             Đang tải lịch sử trò chuyện...
           </div>
         ) : messages.length === 0 ? (
-          <div className="py-12 text-center text-xs text-slate-400">
-            Chưa có tin nhắn nào. Hãy gửi lời chào đầu tiên!
+          <div className="py-16 text-center text-xs text-neutral-400">
+            Chưa có tin nhắn nào. Hãy gửi lời chào đầu tiên để trao đổi về sản phẩm!
           </div>
         ) : (
           messages.map((msg) => {
             const isMe =
+              Boolean(currentWallet) &&
               msg.senderWallet.toLowerCase() === currentWallet.toLowerCase();
 
             return (
               <div
                 key={msg.id}
-                className={`flex flex-col ${isMe ? 'items-end' : 'items-start'} animate-slide-up`}
+                className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
               >
                 <div
                   className={`max-w-[80%] rounded-2xl px-4 py-2.5 text-xs leading-relaxed ${
-                    isMe ? 'bubble-sent text-white' : 'bubble-received shadow-2xs'
+                    isMe
+                      ? 'bg-neutral-900 text-white rounded-br-xs'
+                      : 'bg-white border border-neutral-200 text-neutral-900 rounded-bl-xs shadow-2xs'
                   }`}
                 >
                   {msg.content}
                 </div>
-                <span className="mt-1 text-[9px] text-slate-400 px-1">
+                <span className="mt-1 text-[9px] text-neutral-400 px-1 font-mono">
                   {new Date(msg.createdAt).toLocaleTimeString([], {
                     hour: '2-digit',
                     minute: '2-digit',
@@ -252,19 +261,19 @@ function DirectChatContent({
         )}
 
         {isTyping && (
-          <div className="flex items-center gap-1.5 text-xs text-slate-400 italic pl-2">
-            <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce" />
-            <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:0.2s]" />
-            <span className="h-1.5 w-1.5 rounded-full bg-slate-400 animate-bounce [animation-delay:0.4s]" />
-            <span className="text-[10px]">Đối tác đang nhập...</span>
+          <div className="flex items-center gap-1.5 text-xs text-neutral-400 italic pl-2">
+            <span className="h-1.5 w-1.5 rounded-full bg-neutral-400 animate-bounce" />
+            <span className="h-1.5 w-1.5 rounded-full bg-neutral-400 animate-bounce [animation-delay:0.2s]" />
+            <span className="h-1.5 w-1.5 rounded-full bg-neutral-400 animate-bounce [animation-delay:0.4s]" />
+            <span className="text-[10px]">Đối tác đang nhập tin nhắn...</span>
           </div>
         )}
 
         <div ref={messagesEndRef} />
       </div>
 
-      {/* Chat Input Bar */}
-      <div className="glass border-t border-slate-200/80 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      {/* Input Bar */}
+      <div className="bg-white/95 backdrop-blur-md border-t border-neutral-200 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <form
           onSubmit={handleSendMessage}
           className="max-w-4xl mx-auto flex items-center gap-2"
@@ -274,14 +283,14 @@ function DirectChatContent({
             value={inputText}
             onChange={(e) => setInputText(e.target.value)}
             placeholder="Nhập tin nhắn..."
-            className="flex-1 rounded-2xl border border-slate-200 bg-white px-4 py-3 text-xs focus:border-emerald-500 focus:outline-none focus:ring-1 focus:ring-emerald-500 shadow-2xs"
+            className="flex-1 rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-xs text-neutral-900 placeholder-neutral-400 focus:border-neutral-400 focus:bg-white focus:outline-hidden"
           />
 
           <button
             type="submit"
             aria-label="Gửi tin nhắn"
             disabled={!inputText.trim()}
-            className="gradient-primary flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-white shadow-md shadow-emerald-200 disabled:opacity-40 transition active:scale-95"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-neutral-900 text-white transition hover:bg-neutral-800 disabled:opacity-40"
           >
             <Send className="h-4 w-4" />
           </button>
@@ -297,7 +306,7 @@ export default function DirectChatPage(props: {
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8 text-xs font-semibold text-slate-400">
+        <div className="min-h-screen bg-[#fafafa] flex items-center justify-center p-8 text-xs font-semibold text-neutral-400">
           Đang tải cuộc trò chuyện...
         </div>
       }

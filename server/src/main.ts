@@ -11,12 +11,9 @@ async function bootstrap() {
   app.use(json({ limit: '50mb' }));
   app.use(urlencoded({ extended: true, limit: '50mb' }));
 
+  // origin: true tự động phản hồi theo Origin request, cho phép cả Netlify, Vercel lẫn localhost
   app.enableCors({
-    origin: [
-      'http://localhost:5000',
-      'http://127.0.0.1:5000',
-      'http://localhost:3000',
-    ],
+    origin: true,
     methods: 'GET,HEAD,PUT,PATCH,POST,DELETE,OPTIONS',
     credentials: true,
   });

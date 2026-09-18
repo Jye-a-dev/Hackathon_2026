@@ -1,54 +1,18 @@
-# Hướng Dẫn Deploy Client Lên Vercel
+# Hướng Dẫn Fix Lỗi "Command failed with exit code 1: npm run build" trên Netlify
 
-## Cách 1: Deploy qua Vercel Dashboard (Khuyên dùng)
+## 1. Nguyên nhân
+1. **Option `--webpack` không hợp lệ**: Script `"build": "next build --webpack"` trong `client/package.json` gây lỗi CLI `unknown option '--webpack'` khiến tiến trình build thoát ngay lập tức với Exit Code 1.
+2. **ESLint / Type check trong CI**: ESLint có thể chặn build nếu gặp bất kỳ warning nào trên môi trường Netlify.
 
-### Bước 1: Push code mới nhất lên GitHub
+## 2. Các thay đổi đã thực hiện trong mã nguồn
+1. `client/package.json`: Chuyển `"build": "next build --webpack"` thành `"build": "next build"`.
+2. `client/next.config.ts`: Bổ sung `eslint: { ignoreDuringBuilds: true }`.
+3. `netlify.toml` và `client/netlify.toml`: Đồng bộ `publish = ".next"` và plugin `@netlify/plugin-nextjs`.
+
+## 3. Lệnh Git để deploy lại
+
 ```bash
-git add .
-git commit -m "chore: deploy client to vercel"
+git add client/package.json client/next.config.ts netlify.toml client/netlify.toml
+git commit -m "fix(client): fix invalid build script flag and ignore eslint on build"
 git push origin main
-```
-
-### Bước 2: Tạo Project trên Vercel
-1. Đăng nhập [vercel.com](https://vercel.com) -> Bấm **Add New...** -> **Project**.
-2. Chọn Repository của bạn và bấm **Import**.
-3. Tại phần **Configure Project**:
-   - **Root Directory**: Bấm **Edit** -> Chọn thư mục `client` -> Bấm **Continue**.
-   - **Framework Preset**: Chọn `Next.js` (Vercel tự nhận diện).
-   - **Build and Output Settings**: Giữ nguyên mặc định (Build Command: `npm run build`, Output Directory: `.next`).
-
-### Bước 3: Thêm Environment Variables
-Mở phần **Environment Variables** và nhập 4 biến sau:
-
-| Key | Value |
-|---|---|
-| `NEXT_PUBLIC_API_URL` | `https://hackathon-2026-y2aa.onrender.com/api` |
-| `NEXT_PUBLIC_SOCKET_URL` | `https://hackathon-2026-y2aa.onrender.com` |
-| `NEXT_PUBLIC_SOLANA_RPC_URL` | `https://api.devnet.solana.com` |
-| `NEXT_PUBLIC_PROGRAM_ID` | `HxRDoZFg52q9R5y1VGTSPEMqJjyW3WNgnxsz5bN8ooXk` |
-
-### Bước 4: Triển khai
-- Bấm **Deploy**. Vercel sẽ tự động tối ưu hoá SSR, App Router và cấp domain dạng `https://ten-du-an.vercel.app`.
-
----
-
-## Cách 2: Deploy trực tiếp bằng Vercel CLI
-
-```bash
-# 1. Di chuyển vào thư mục client
-cd client
-
-# 2. Cài đặt và chạy Vercel CLI
-npx vercel
-
-# 3. Khi được hỏi:
-# - Set up and deploy?: Y
-# - Which scope?: chọn tài khoản của bạn
-# - Link to existing project?: N
-# - What's your project's name?: trustpass-client
-# - In which directory is your code located?: ./
-# - Want to modify these settings?: N
-
-# 4. Deploy bản production
-npx vercel --prod
 ```

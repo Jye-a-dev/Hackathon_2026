@@ -24,9 +24,9 @@ const sanitizeBaseUrl = (url: string): string =>
   url.replace(/([^:]\/)\/+/g, '$1').replace(/\/+$/, '');
 
 export const http: AxiosInstance = axios.create({
-  baseURL: sanitizeBaseUrl(process.env.NEXT_PUBLIC_API_URL ?? 'http://localhost:3001/api'),
+  baseURL: sanitizeBaseUrl(process.env.NEXT_PUBLIC_API_URL ?? 'https://hackathon-2026-y2aa.onrender.com/api'),
   headers: { 'Content-Type': 'application/json' },
-  timeout: 15_000,
+  timeout: 60_000, // 60s tolerance for Render cold boot
 });
 
 const TOKEN_KEY = 'kyquy_token';

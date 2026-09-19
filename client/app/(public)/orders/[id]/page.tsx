@@ -25,6 +25,15 @@ import { useOrderDetail, useConfirmOrder, useRaiseDispute } from '@/hooks/useMar
 import { joinOrderRoom, leaveOrderRoom } from '@/libs/socket';
 import { Skeleton } from '@/components/ui/skeleton';
 
+interface ApiErrorResponse {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+  message?: string;
+}
+
 function OrderDetailSkeleton() {
   return (
     <div className="w-full max-w-4xl mx-auto space-y-4">
@@ -79,7 +88,7 @@ export default function OrderDetailPage({
 
   useEffect(() => {
     if (isError && error) {
-      const msg = (error as any)?.response?.data?.message ?? (error as Error)?.message ?? 'Lỗi khi tải đơn hàng';
+      const msg = (error as ApiErrorResponse)?.response?.data?.message ?? (error as Error)?.message ?? 'Lỗi khi tải đơn hàng';
       toast.error(msg);
     }
   }, [isError, error]);
@@ -152,7 +161,7 @@ export default function OrderDetailPage({
   }
 
   if (isError || !order) {
-    const msg = (error as any)?.response?.data?.message ?? (error as Error)?.message ?? 'Không tìm thấy đơn hàng';
+    const msg = (error as ApiErrorResponse)?.response?.data?.message ?? (error as Error)?.message ?? 'Không tìm thấy đơn hàng';
     return (
       <div className="w-full max-w-full min-h-[70vh] flex items-center justify-center py-12 px-4 sm:px-6">
         <div className="w-full max-w-md mx-auto rounded-3xl border border-neutral-200/80 bg-white p-8 shadow-xs text-center">
@@ -186,7 +195,7 @@ export default function OrderDetailPage({
   }).format(order.amountVnd);
 
   return (
-    <div className="w-full max-w-full pb-24 md:pb-12">
+    <div className="w-full max-w-full pb-36 sm:pb-12">
       <main className="w-full max-w-4xl mx-auto py-10 px-4 sm:px-6 space-y-6">
         {/* Top navigation & action */}
         <div className="flex items-center justify-between">
@@ -271,7 +280,7 @@ export default function OrderDetailPage({
               <div className="space-y-3 text-[11px] pt-1">
                 <div className="flex justify-between items-center gap-2">
                   <span className="text-neutral-400 font-sans">Vault PDA Address:</span>
-                  <span className="text-emerald-400 font-mono font-bold truncate max-w-[200px] sm:max-w-xs">
+                  <span className="text-emerald-400 font-mono font-bold truncate max-w-50 sm:max-w-xs">
                     {order.vaultPda || order.escrowAddress || '8xztF8k9VbWc1vNpQzM4vLk6d9K4j2LmAnchor'}
                   </span>
                 </div>
@@ -427,23 +436,25 @@ export default function OrderDetailPage({
             {/* Dual Actions for DELIVERED status */}
             {order.status === 'DELIVERED' && (
               <div className="rounded-3xl border border-neutral-200/80 bg-white p-5 shadow-xs space-y-3">
-                <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500">Thao tác người mua</h4>
-                <button
-                  type="button"
-                  onClick={() => confirmOrder(order.id)}
-                  disabled={isConfirming}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 py-3 text-xs font-bold text-white shadow-xs transition active:scale-[0.98] disabled:opacity-50"
-                >
-                  <PackageCheck className="h-4 w-4 text-emerald-400" />
-                  <span>{isConfirming ? 'Đang giải ngân...' : 'Xác nhận đã nhận đúng hàng (Giải ngân)'}</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowInlineDispute((prev) => !prev)}
-                  className="w-full rounded-xl border border-rose-200 bg-rose-50/70 py-2.5 text-xs font-bold text-rose-600 hover:bg-rose-100 transition active:scale-[0.98]"
-                >
-                  {showInlineDispute ? 'Thu gọn form khiếu nại' : 'Khiếu nại / Báo lỗi'}
-                </button>
+                <h4 className="text-xs font-bold uppercase tracking-wider text-neutral-500 hidden sm:block">Thao tác người mua</h4>
+                <div className="p-4 bg-white/95 backdrop-blur-md border-t border-neutral-200/80 fixed bottom-0 inset-x-0 sm:static sm:bg-transparent sm:border-0 sm:p-0 z-40 space-y-2.5 shadow-lg sm:shadow-none">
+                  <button
+                    type="button"
+                    onClick={() => confirmOrder(order.id)}
+                    disabled={isConfirming}
+                    className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-neutral-900 hover:bg-neutral-800 h-11 sm:h-10 text-xs font-bold text-white shadow-xs transition active:scale-[0.98] disabled:opacity-50"
+                  >
+                    <PackageCheck className="h-4 w-4 text-emerald-400" />
+                    <span>{isConfirming ? 'Đang giải ngân...' : 'Xác nhận đã nhận đúng hàng (Giải ngân)'}</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowInlineDispute((prev) => !prev)}
+                    className="w-full rounded-xl border border-rose-200 bg-rose-50/70 h-10 sm:h-9 text-xs font-bold text-rose-600 hover:bg-rose-100 transition active:scale-[0.98]"
+                  >
+                    {showInlineDispute ? 'Thu gọn form khiếu nại' : 'Khiếu nại / Báo lỗi'}
+                  </button>
+                </div>
               </div>
             )}
           </div>

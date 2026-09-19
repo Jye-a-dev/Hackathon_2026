@@ -16,12 +16,26 @@ import {
 } from 'lucide-react';
 import { toast } from 'sonner';
 import confetti from 'canvas-confetti';
-import { Money } from '@/domain/value-objects/Money';
 import { EscrowTimer } from '@/domain/value-objects/EscrowTimer';
 import { usePaymentQr, useOrderDetail } from '@/hooks/useMarketplace';
 import { joinOrderRoom, leaveOrderRoom } from '@/libs/socket';
 import { QrSkeleton } from '@/components/checkout/QrSkeleton';
 import type { Socket } from 'socket.io-client';
+
+interface OrderSocketPayload {
+  orderId?: string;
+  order_id?: string;
+  status?: string;
+}
+
+interface ApiErrorResponse {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+  message?: string;
+}
 
 function CopyRow({ label, value }: { label: string; value: string }) {
   const [copied, setCopied] = useState(false);
@@ -112,7 +126,7 @@ function CheckoutContent({ params }: { params: Promise<{ orderId: string }> }) {
     const socket = joinOrderRoom(orderId);
     socketRef.current = socket;
 
-    const handleEscrowUpdate = (event: any) => {
+    const handleEscrowUpdate = (event: OrderSocketPayload) => {
       if (
         (event?.orderId === orderId || event?.order_id === orderId) &&
         (event?.status === 'LOCKED' || event?.status === 'DELIVERING' || event?.status === 'CONFIRMED')
@@ -124,8 +138,9 @@ function CheckoutContent({ params }: { params: Promise<{ orderId: string }> }) {
     socket.on('escrow:updated', handleEscrowUpdate);
     socket.on('PAYMENT_LOCKED', handlePaymentSuccess);
     socket.on('PAYMENT_CONFIRMED', handlePaymentSuccess);
-    socket.on(`order_${orderId}`, (event: any) => {
-      if (event?.status === 'LOCKED' || event?.status === 'CONFIRMED' || event === 'PAYMENT_LOCKED') {
+    socket.on(`order_${orderId}`, (event: OrderSocketPayload | string) => {
+      const eventStatus = typeof event === 'string' ? event : event?.status;
+      if (eventStatus === 'LOCKED' || eventStatus === 'CONFIRMED' || event === 'PAYMENT_LOCKED') {
         handlePaymentSuccess();
       }
     });
@@ -142,7 +157,7 @@ function CheckoutContent({ params }: { params: Promise<{ orderId: string }> }) {
   useEffect(() => {
     if (qrError && qrErrorObj) {
       const msg =
-        (qrErrorObj as any)?.response?.data?.message ??
+        (qrErrorObj as ApiErrorResponse)?.response?.data?.message ??
         (qrErrorObj as Error)?.message ??
         'Không thể tải thông tin thanh toán';
       toast.error(msg);
@@ -176,20 +191,20 @@ function CheckoutContent({ params }: { params: Promise<{ orderId: string }> }) {
   }).format(amountNumber);
 
   return (
-    <div className="w-full max-w-2xl mx-auto space-y-6">
+    <div className="w-full max-w-md bg-white rounded-3xl border border-neutral-200/80 shadow-xl p-5 sm:p-8 space-y-5 sm:space-y-6">
       {/* Top Header Card */}
-      <div className="flex items-center gap-3.5 rounded-3xl border border-neutral-200/80 bg-white p-5 shadow-xs">
-        <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-neutral-900 text-emerald-400">
-          <QrCode className="h-6 w-6" />
+      <div className="flex items-center gap-3">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-neutral-900 text-emerald-400">
+          <QrCode className="h-5 w-5" />
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2">
             <h1 className="text-base font-extrabold text-neutral-950 truncate">
-              Thanh toán Ký Quỹ VietQR
+              Ký Quỹ VietQR
             </h1>
-            <span className="shrink-0 flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
+            <span className="shrink-0 flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-bold text-emerald-800 border border-emerald-200">
               <ShieldCheck className="h-3 w-3 text-emerald-600" />
-              Ký quỹ 48h
+              48h
             </span>
           </div>
           <p className="text-xs text-neutral-500 truncate mt-0.5">
@@ -199,8 +214,8 @@ function CheckoutContent({ params }: { params: Promise<{ orderId: string }> }) {
       </div>
 
       {/* Ticking Amber Timer Pill */}
-      <div className="flex items-center justify-between rounded-2xl bg-amber-50/80 px-4 py-3 border border-amber-200/60">
-        <div className="flex items-center gap-2 text-amber-800">
+      <div className="flex items-center justify-between rounded-2xl bg-amber-50/80 px-3.5 py-2.5 border border-amber-200/60">
+        <div className="flex items-center gap-1.5 text-amber-800">
           <Clock className="h-4 w-4" />
           <span className="text-xs font-bold">Thời gian thanh toán còn lại</span>
         </div>
@@ -210,26 +225,18 @@ function CheckoutContent({ params }: { params: Promise<{ orderId: string }> }) {
       </div>
 
       {/* Amount Display */}
-      <div className="rounded-3xl border border-neutral-200/80 bg-white p-6 text-center shadow-xs">
-        <p className="text-xs font-semibold uppercase tracking-wider text-neutral-400">Số tiền cần chuyển</p>
-        <p className="mt-2 text-3xl sm:text-4xl font-black tracking-tight text-neutral-950 font-sans">
+      <div className="rounded-2xl border border-neutral-100 bg-neutral-50/60 p-4 text-center">
+        <p className="text-[11px] font-semibold uppercase tracking-wider text-neutral-400">Số tiền cần chuyển</p>
+        <p className="mt-1 text-2xl sm:text-3xl font-black tracking-tight text-neutral-950 font-sans">
           {formattedVnd}
         </p>
-        <p className="mt-1.5 text-xs text-neutral-500">
+        <p className="mt-1 text-[11px] text-neutral-500">
           Chuyển đúng số tiền và nội dung để hệ thống tự động kích hoạt ký quỹ
         </p>
       </div>
 
-      {/* Dynamic VietQR Canvas */}
-      <div className="rounded-3xl border border-neutral-200/80 bg-white p-6 shadow-xs">
-        <div className="mb-5 flex items-center justify-between">
-          <h2 className="text-xs font-bold uppercase tracking-wider text-neutral-700">Quét mã VietQR</h2>
-          <span className="flex items-center gap-1 rounded-full bg-emerald-50 px-2.5 py-0.5 text-[10px] font-bold text-emerald-700 border border-emerald-200/60">
-            <ShieldCheck className="h-3 w-3" />
-            Ký quỹ bảo vệ
-          </span>
-        </div>
-
+      {/* Dynamic VietQR Canvas: w-48 h-48 sm:w-56 sm:h-56 */}
+      <div className="flex flex-col items-center gap-4">
         {qrLoading && (
           <div className="flex flex-col items-center">
             <QrSkeleton />
@@ -237,26 +244,26 @@ function CheckoutContent({ params }: { params: Promise<{ orderId: string }> }) {
         )}
 
         {qrError && !qrLoading && (
-          <div className="flex flex-col items-center gap-4 py-8 text-center">
-            <AlertCircle className="h-10 w-10 text-rose-500" />
+          <div className="flex flex-col items-center gap-3 py-6 text-center">
+            <AlertCircle className="h-9 w-9 text-rose-500" />
             <div>
               <p className="font-bold text-neutral-800 text-sm">Không thể tải mã QR</p>
               <p className="mt-1 text-xs text-neutral-500">
-                {(qrErrorObj as any)?.response?.data?.message ?? 'Vui lòng thử lại'}
+                {(qrErrorObj as ApiErrorResponse)?.response?.data?.message ?? 'Vui lòng thử lại'}
               </p>
             </div>
             <button
               onClick={() => refetchQr()}
-              className="inline-flex items-center gap-2 rounded-xl bg-neutral-900 px-5 py-2.5 text-xs font-bold text-white transition hover:bg-neutral-800"
+              className="inline-flex items-center gap-2 rounded-xl bg-neutral-900 px-4 py-2 text-xs font-bold text-white transition hover:bg-neutral-800"
             >
-              <RefreshCw className="h-4 w-4" /> Tải lại
+              <RefreshCw className="h-3.5 w-3.5" /> Tải lại
             </button>
           </div>
         )}
 
         {qrData && !qrLoading && !qrError && (
-          <div className="flex flex-col items-center gap-5">
-            <div className="w-64 h-64 mx-auto rounded-2xl border border-neutral-200/80 p-3 bg-white shadow-inner flex items-center justify-center relative overflow-hidden">
+          <div className="w-full flex flex-col items-center gap-4">
+            <div className="w-48 h-48 sm:w-56 sm:h-56 mx-auto rounded-2xl border border-neutral-200/80 p-2.5 bg-white shadow-inner flex items-center justify-center relative overflow-hidden">
               {qrData.qrCodeUrl && (
                 <Image
                   src={qrData.qrCodeUrl}
@@ -270,17 +277,10 @@ function CheckoutContent({ params }: { params: Promise<{ orderId: string }> }) {
             </div>
 
             {/* Detailed Transfer Breakdown Card */}
-            <div className="w-full space-y-2.5">
-              <div className="flex items-center justify-between rounded-xl bg-neutral-50 px-4 py-3 border border-neutral-200/60">
-                <span className="text-xs font-medium text-neutral-500">Sản phẩm</span>
-                <span className="truncate max-w-[65%] text-xs font-bold text-neutral-800">
-                  {order?.listingTitle || 'Đơn hàng ký quỹ'}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between rounded-xl bg-neutral-50 px-4 py-3 border border-neutral-200/60">
-                <span className="text-xs font-medium text-neutral-500">Đơn vị thụ hưởng</span>
-                <span className="font-mono text-xs font-bold text-neutral-900 uppercase">
+            <div className="w-full space-y-2">
+              <div className="flex items-center justify-between rounded-xl bg-neutral-50 px-3.5 py-2.5 border border-neutral-200/60">
+                <span className="text-xs font-medium text-neutral-500">Người nhận</span>
+                <span className="font-mono text-xs font-bold text-neutral-900 uppercase truncate max-w-[60%]">
                   {qrData.accountHolderName || 'HỆ THỐNG KÝ QUỸ TRUSTPASS'}
                 </span>
               </div>
@@ -290,7 +290,7 @@ function CheckoutContent({ params }: { params: Promise<{ orderId: string }> }) {
               )}
               <CopyRow label="Số tài khoản" value={qrData.accountNo} />
               <CopyRow label="Số tiền" value={formattedVnd} />
-              <CopyRow label="Nội dung chuyển khoản" value={qrData.memo} />
+              <CopyRow label="Nội dung" value={qrData.memo} />
             </div>
           </div>
         )}
@@ -299,7 +299,7 @@ function CheckoutContent({ params }: { params: Promise<{ orderId: string }> }) {
       <button
         type="button"
         onClick={() => router.push(`/orders/${orderId}`)}
-        className="w-full flex items-center justify-center gap-2 rounded-2xl border border-neutral-200 bg-white px-4 py-3.5 text-xs font-bold text-neutral-700 transition hover:bg-neutral-50 shadow-2xs active:scale-[0.98] duration-100"
+        className="w-full flex items-center justify-center gap-2 rounded-xl bg-neutral-900 hover:bg-neutral-800 text-white px-4 h-12 text-xs font-bold transition shadow-xs active:scale-[0.98] duration-100"
       >
         <span>Tôi đã chuyển khoản → Xem đơn hàng</span>
         <ArrowRight className="h-4 w-4" />
@@ -314,10 +314,10 @@ export default function CheckoutPage({
   params: Promise<{ orderId: string }>;
 }) {
   return (
-    <div className="w-full max-w-full min-h-[80vh] py-10 px-4 sm:px-8 lg:px-12">
+    <div className="w-full min-h-[calc(100vh-8rem)] flex items-center justify-center px-4 py-8">
       <Suspense
         fallback={
-          <div className="w-full max-w-2xl mx-auto">
+          <div className="w-full max-w-md mx-auto">
             <QrSkeleton />
           </div>
         }

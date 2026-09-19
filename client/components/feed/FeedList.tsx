@@ -2,13 +2,22 @@
 
 import { useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
-import { Loader2, PackageOpen, RotateCcw } from 'lucide-react';
+import { Loader2, PackageOpen } from 'lucide-react';
 import { toast } from 'sonner';
 import { useListings } from '@/hooks/useMarketplace';
 import ProductCard, { ProductCardSkeleton } from '@/components/modules/ProductCard';
 import { EmptyState } from '@/components/common/EmptyState';
 import { ErrorBanner } from '@/components/common/EmptyState';
 import type { Listing, ListingCategory, ListingQueryParams } from '@/types/listing';
+
+interface ApiErrorResponse {
+  response?: {
+    data?: {
+      message?: string;
+    };
+  };
+  message?: string;
+}
 
 interface FeedListProps {
   category?: ListingCategory | 'ALL';
@@ -46,7 +55,7 @@ export default function FeedList({
 
   useEffect(() => {
     if (isError && error) {
-      const msg = (error as any)?.response?.data?.message ?? (error as Error)?.message ?? 'Không thể kết nối đến máy chủ.';
+      const msg = (error as ApiErrorResponse)?.response?.data?.message ?? (error as Error)?.message ?? 'Không thể kết nối đến máy chủ.';
       toast.error(msg);
     }
   }, [isError, error]);
@@ -69,7 +78,7 @@ export default function FeedList({
   const listings: Listing[] = data?.pages.flatMap((p) => p.data) ?? [];
 
   if (isError) {
-    const msg = (error as any)?.response?.data?.message ?? (error as Error)?.message ?? 'Lỗi kết nối máy chủ.';
+    const msg = (error as ApiErrorResponse)?.response?.data?.message ?? (error as Error)?.message ?? 'Lỗi kết nối máy chủ.';
     return (
       <div className="py-12">
         <ErrorBanner message={msg} onRetry={() => refetch()} />
@@ -102,7 +111,7 @@ export default function FeedList({
 
   return (
     <div className="w-full max-w-full">
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-4 sm:gap-6 w-full">
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4 sm:gap-6 w-full">
         {isLoading
           ? Array.from({ length: 12 }).map((_, i) => <ProductCardSkeleton key={i} />)
           : listings.map((listing, idx) => (

@@ -7,7 +7,6 @@ import { useRouter } from 'next/navigation';
 import { Heart, ShieldCheck, MessageCircle, CheckCircle2, MapPin, Package, Star } from 'lucide-react';
 import { clsx } from 'clsx';
 import type { Listing } from '@/types/listing';
-import { Money } from '@/domain/value-objects/Money';
 
 interface ProductCardProps {
   listing: Listing;
@@ -24,8 +23,8 @@ const CONDITION_DISPLAY_MAP: Record<string, string> = {
 
 export function ProductCardSkeleton() {
   return (
-    <div className="flex flex-col overflow-hidden rounded-2xl bg-white border border-neutral-200/80 shadow-xs">
-      <div className="aspect-[4/5] w-full animate-pulse bg-neutral-100" />
+    <div className="flex flex-col w-full overflow-hidden rounded-2xl bg-white border border-neutral-200/80 shadow-xs">
+      <div className="aspect-4/5 w-full animate-pulse bg-neutral-100" />
       <div className="space-y-2 p-3.5">
         <div className="h-5 w-24 animate-pulse rounded bg-neutral-100" />
         <div className="h-4 w-full animate-pulse rounded bg-neutral-100" />
@@ -42,7 +41,6 @@ export default function ProductCard({ listing, index = 0, onChatClick }: Product
   const router = useRouter();
   const [liked, setLiked] = useState(false);
 
-  const priceMoney = new Money(listing.price, 'VND');
   const conditionText = CONDITION_DISPLAY_MAP[listing.condition] ?? 'Like New 99%';
   const hasImage = Boolean(listing.images && listing.images.length > 0 && listing.images[0]);
   const imageUrl = hasImage ? listing.images[0] : null;
@@ -89,16 +87,16 @@ export default function ProductCard({ listing, index = 0, onChatClick }: Product
 
   return (
     <Link href={`/listings/${listing.id}`} className="group block focus:outline-hidden w-full" tabIndex={0}>
-      <article className="w-full rounded-2xl p-3 bg-white border border-neutral-200/80 hover:border-neutral-300 hover:shadow-xl transition-all duration-300 ease-out flex flex-col">
+      <article className="w-full overflow-hidden rounded-2xl p-2.5 sm:p-3 bg-white border border-neutral-200/80 hover:border-neutral-300 hover:shadow-xl transition-all duration-300 ease-out flex flex-col">
         {/* ── Fixed 4:5 Aspect Ratio Image Container ── */}
-        <div className="relative aspect-[4/5] w-full overflow-hidden rounded-xl bg-neutral-100">
+        <div className="relative aspect-4/5 w-full overflow-hidden rounded-2xl bg-neutral-100">
           {imageUrl ? (
             <Image
               src={imageUrl}
               alt={listing.title}
               fill
-              sizes="(max-width: 640px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, 16vw"
-              className="object-cover transition-transform duration-500 ease-out group-hover:scale-105"
+              sizes="(max-width: 640px) 50vw, (max-width: 768px) 50vw, (max-width: 1024px) 33vw, (max-width: 1280px) 25vw, 20vw"
+              className="object-cover transition-transform duration-300 ease-out group-hover:scale-105"
               priority={index < 4}
             />
           ) : (
@@ -108,7 +106,7 @@ export default function ProductCard({ listing, index = 0, onChatClick }: Product
           )}
 
           {/* Gradient scrim for badge readability */}
-          <div className="pointer-events-none absolute inset-0 bg-gradient-to-t from-black/40 via-transparent to-transparent" />
+          <div className="pointer-events-none absolute inset-0 bg-linear-to-t from-black/40 via-transparent to-transparent" />
 
           {/* Top-left: Glassmorphic Ký quỹ 48h pill */}
           <div className="absolute left-2.5 top-2.5 flex items-center gap-1 backdrop-blur-md bg-white/90 text-emerald-800 border border-emerald-200/60 font-bold text-[10px] px-2 py-0.5 rounded-full shadow-xs">
@@ -121,7 +119,7 @@ export default function ProductCard({ listing, index = 0, onChatClick }: Product
             type="button"
             onClick={handleLike}
             aria-label={liked ? 'Bỏ lưu' : 'Lưu tin'}
-            className="absolute right-2.5 top-2.5 flex h-8 w-8 items-center justify-center rounded-full bg-white/85 text-neutral-600 shadow-xs backdrop-blur-sm transition-all hover:bg-white hover:text-rose-500 active:scale-[0.98] duration-100"
+            className="absolute right-2.5 top-2.5 flex h-9 w-9 sm:h-8 sm:w-8 items-center justify-center rounded-full bg-white/85 text-neutral-600 shadow-xs backdrop-blur-sm transition-all hover:bg-white hover:text-rose-500 active:scale-[0.98] duration-100"
           >
             <Heart className={clsx('h-4 w-4 transition-colors', liked && 'fill-rose-500 text-rose-500')} />
           </button>
@@ -131,8 +129,8 @@ export default function ProductCard({ listing, index = 0, onChatClick }: Product
             {conditionText}
           </span>
 
-          {/* Hover Action Bar */}
-          <div className="absolute inset-x-2.5 bottom-2.5 flex translate-y-3 gap-2 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">
+          {/* Hover Action Bar (Desktop only, mobile relies on direct tap navigation) */}
+          <div className="hidden sm:flex absolute inset-x-2.5 bottom-2.5 translate-y-3 gap-2 opacity-0 transition-all duration-200 group-hover:translate-y-0 group-hover:opacity-100">
             <button
               type="button"
               onClick={handleChat}
@@ -153,18 +151,18 @@ export default function ProductCard({ listing, index = 0, onChatClick }: Product
         </div>
 
         {/* ── Meta Footer ── */}
-        <div className="flex flex-col gap-1 p-2 pt-3">
+        <div className="flex flex-col gap-1 p-2 pt-2.5">
           {/* Title (Single-line truncated) */}
-          <h3 className="truncate text-xs font-semibold text-neutral-800 transition-colors group-hover:text-emerald-700">
+          <h3 className="truncate text-xs sm:text-sm font-semibold text-neutral-800 transition-colors group-hover:text-emerald-700">
             {listing.title}
           </h3>
 
           {/* Pricing: Primary formatted VNĐ price & original crossed-out price */}
-          <div className="flex items-baseline gap-2">
-            <span className="text-base font-black tracking-tight text-neutral-950 font-sans">
+          <div className="flex items-baseline gap-1.5 sm:gap-2">
+            <span className="text-sm sm:text-base font-black tracking-tight text-neutral-950 font-sans">
               {formattedPrice}
             </span>
-            <span className="text-[11px] font-medium text-neutral-400 line-through">
+            <span className="text-[10px] sm:text-[11px] font-medium text-neutral-400 line-through">
               {formattedOriginalPrice}
             </span>
           </div>
@@ -181,7 +179,7 @@ export default function ProductCard({ listing, index = 0, onChatClick }: Product
                   </div>
                 )}
               </div>
-              <span className="truncate max-w-18 font-medium text-neutral-700">
+              <span className="truncate max-w-16 sm:max-w-20 font-medium text-neutral-700">
                 {seller.username}
               </span>
               {seller.isVerified && (
@@ -189,7 +187,7 @@ export default function ProductCard({ listing, index = 0, onChatClick }: Product
               )}
             </div>
 
-            <div className="flex items-center gap-1.5 shrink-0">
+            <div className="flex items-center gap-1 shrink-0">
               <span className="flex items-center gap-0.5 text-amber-600 font-bold text-[10px]">
                 <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
                 {Number(seller.rating ?? 5.0).toFixed(1)}
@@ -197,7 +195,7 @@ export default function ProductCard({ listing, index = 0, onChatClick }: Product
               <span className="text-neutral-300">•</span>
               <div className="flex items-center gap-0.5 text-neutral-400 text-[10px]">
                 <MapPin className="h-2.5 w-2.5" />
-                <span className="truncate max-w-16">{listing.location?.district || 'Toàn quốc'}</span>
+                <span className="truncate max-w-12 sm:max-w-16">{listing.location?.district || 'Toàn quốc'}</span>
               </div>
             </div>
           </div>

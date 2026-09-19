@@ -10,7 +10,7 @@ interface OrderStepperProps {
 const steps = [
   { key: 'LOCKED',    label: 'Đã khóa quỹ',   desc: 'Khóa quỹ an toàn', icon: Check },
   { key: 'SHIPPED',   label: 'Đã giao hàng',  desc: 'Đang vận chuyển',   icon: Truck },
-  { key: 'DELIVERED', label: 'Kiểm hàng (48h)', desc: 'Đang kiểm tra',    icon: Clock },
+  { key: 'DELIVERED', label: 'Kiểm hàng 48h', desc: 'Đang kiểm tra',    icon: Clock },
   { key: 'COMPLETED', label: 'Giải ngân',     desc: 'Giải ngân seller',  icon: Wallet },
 ];
 
@@ -56,8 +56,9 @@ export default function OrderStepper({ status }: OrderStepperProps) {
   }
 
   return (
-    <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-neutral-200/80">
-      <div className="flex items-center justify-between">
+    <div className="bg-white rounded-2xl p-4 sm:p-5 shadow-xs border border-neutral-200/80 w-full overflow-hidden">
+      {/* ── Desktop & Mobile Responsive Tracker with 4 Connected Nodes ── */}
+      <div className="flex items-center justify-between relative w-full">
         {steps.map((step, idx) => {
           const Icon = step.icon;
           const isDone = currentStep > idx + 1 || (currentStep === 4 && idx === 3);
@@ -65,7 +66,7 @@ export default function OrderStepper({ status }: OrderStepperProps) {
           const isDeliveredPulse = isCurrent && step.key === 'DELIVERED';
 
           return (
-            <div key={step.key} className="flex-1 flex flex-col items-center text-center relative">
+            <div key={step.key} className="flex-1 flex flex-col items-center text-center relative px-0.5">
               {idx > 0 && (
                 <div
                   className={`absolute top-4 -left-1/2 w-full h-0.5 z-0 ${
@@ -81,7 +82,7 @@ export default function OrderStepper({ status }: OrderStepperProps) {
                     : isDeliveredPulse
                     ? 'bg-amber-500 text-white ring-4 ring-amber-100 animate-pulse shadow-md'
                     : isCurrent
-                    ? 'bg-neutral-900 text-white shadow-xs'
+                    ? 'bg-neutral-900 text-white shadow-xs ring-4 ring-neutral-100'
                     : 'bg-neutral-100 text-neutral-400'
                 }`}
               >
@@ -89,13 +90,13 @@ export default function OrderStepper({ status }: OrderStepperProps) {
               </div>
 
               <span
-                className={`mt-2 text-[10px] sm:text-[11px] font-bold ${
+                className={`mt-2 text-[10px] sm:text-xs font-bold whitespace-nowrap ${
                   isCurrent ? 'text-neutral-900' : isDone ? 'text-emerald-700' : 'text-neutral-400'
                 }`}
               >
                 {step.label}
               </span>
-              <span className="text-[9px] text-neutral-400 hidden sm:block">{step.desc}</span>
+              <span className="text-[9px] text-neutral-400 hidden sm:block mt-0.5">{step.desc}</span>
             </div>
           );
         })}

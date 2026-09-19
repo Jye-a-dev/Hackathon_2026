@@ -19,7 +19,7 @@ import PublicNavbar from '@/components/layouts/PublicNavbar';
 import PublicFooter from '@/components/layouts/PublicFooter';
 import MobileBottomNav from '@/components/layouts/MobileBottomNav';
 import { useCurrentUser } from '@/hooks/useMarketplace';
-import { useAuthStore } from '@/store/useAuthStore';
+import { useIsMounted } from '@/hooks/useMounted';
 import { performFullLogout } from '@/libs/logout';
 
 
@@ -59,11 +59,10 @@ export default function UserLayout({ children }: UserLayoutProps) {
   const pathname = usePathname();
   const queryClient = useQueryClient();
   const { data: user, isLoading } = useCurrentUser();
-  useAuthStore();
+  const isMounted = useIsMounted();
 
-
-  const name = user?.username || 'Người dùng';
-  const rating = user?.rating ?? 5.0;
+  const name = isMounted && user?.username ? user.username : 'Người dùng';
+  const rating = isMounted && user?.rating !== undefined ? user.rating : 5.0;
 
   return (
     <div className="min-h-screen bg-[#fafafa] text-neutral-900 flex flex-col justify-between selection:bg-emerald-100 selection:text-emerald-900">
@@ -77,8 +76,11 @@ export default function UserLayout({ children }: UserLayoutProps) {
             {/* User Profile Card */}
             <div className="rounded-2xl border border-neutral-200/80 bg-white p-5 shadow-2xs">
               <div className="flex items-center gap-3">
-                <div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-900 text-sm font-bold text-white shadow-xs">
-                  {isLoading ? (
+                <div
+                  suppressHydrationWarning
+                  className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-900 text-sm font-bold text-white shadow-xs"
+                >
+                  {!isMounted || isLoading ? (
                     '…'
                   ) : user?.avatarUrl ? (
                     <Image
@@ -95,10 +97,12 @@ export default function UserLayout({ children }: UserLayoutProps) {
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-1.5">
-                    <h2 className="truncate text-sm font-bold text-neutral-900">{name}</h2>
+                    <h2 suppressHydrationWarning className="truncate text-sm font-bold text-neutral-900">
+                      {name}
+                    </h2>
                     <ShieldCheck className="h-3.5 w-3.5 text-emerald-600 shrink-0" />
                   </div>
-                  <div className="flex items-center gap-1 text-[11px] text-amber-500 font-semibold">
+                  <div suppressHydrationWarning className="flex items-center gap-1 text-[11px] text-amber-500 font-semibold">
                     <Star className="h-3 w-3 fill-amber-400 text-amber-400" />
                     <span>{rating.toFixed(1)} Điểm tín nhiệm</span>
                   </div>
@@ -107,8 +111,8 @@ export default function UserLayout({ children }: UserLayoutProps) {
 
               <div className="mt-4 pt-3 border-t border-neutral-100 flex items-center justify-between text-xs text-neutral-500">
                 <span>Vai trò:</span>
-                <span className="font-bold text-neutral-800 uppercase text-[10px] bg-neutral-100 px-2 py-0.5 rounded-md">
-                  {user?.role || 'USER'}
+                <span suppressHydrationWarning className="font-bold text-neutral-800 uppercase text-[10px] bg-neutral-100 px-2 py-0.5 rounded-md">
+                  {isMounted && user?.role ? user.role : 'USER'}
                 </span>
               </div>
             </div>

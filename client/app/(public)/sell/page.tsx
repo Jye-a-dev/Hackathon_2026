@@ -70,8 +70,8 @@ const LABEL_CLS = 'mb-1.5 block text-xs font-semibold text-neutral-700 uppercase
 
 function SellFormSkeleton() {
   return (
-    <div className="w-full max-w-full px-4 sm:px-8 lg:px-12 py-8 bg-neutral-50/50 min-h-screen pb-24 md:pb-12 animate-pulse">
-      <div className="w-full max-w-7xl mx-auto space-y-6">
+    <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-screen pb-24 md:pb-12 animate-pulse">
+      <div className="w-full space-y-6">
         <div className="flex items-center gap-3">
           <div className="h-5 w-20 bg-neutral-200 rounded-lg" />
           <div className="h-4 w-px bg-neutral-200" />
@@ -343,8 +343,8 @@ function SellPageContent() {
   const coverImage = existingImages[0] || newPreviews[0] || null;
 
   return (
-    <div className="w-full max-w-full px-4 sm:px-8 lg:px-12 py-8 bg-neutral-50/50 min-h-screen pb-24 md:pb-12">
-      <div className="w-full max-w-7xl mx-auto">
+    <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8 min-h-screen pb-24 md:pb-12">
+      <div>
         {/* Navigation / Mode Header */}
         <div className="flex items-center justify-between gap-3 mb-6">
           <div className="flex items-center gap-3">
@@ -373,10 +373,10 @@ function SellPageContent() {
 
         {/* Dynamic Title & Subtitle */}
         <div className="mb-8">
-          <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-neutral-900">
+          <h1 className="text-xl sm:text-2xl md:text-3xl lg:text-4xl font-extrabold tracking-tight text-neutral-900 font-display">
             {isEditMode ? 'Chỉnh sửa tin đăng' : 'Đăng tin pass đồ siêu tốc'}
           </h1>
-          <p className="mt-1.5 text-sm text-neutral-500">
+          <p className="mt-1.5 text-xs sm:text-sm text-neutral-500">
             {isEditMode
               ? 'Cập nhật lại thông tin và hình ảnh sản phẩm của bạn'
               : 'Tạo bài đăng nhanh chóng, an toàn với Ký quỹ 48h'}
@@ -384,10 +384,10 @@ function SellPageContent() {
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)}>
-          {/* 2-Column Studio Grid */}
+          {/* 12-Column Split Studio Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
-            {/* ── LEFT: Media Upload + Live Marketplace Card Preview (col-span-5) ── */}
-            <div className="lg:col-span-5 space-y-5">
+            {/* ── LEFT: Media Dropzone + Live Product Card Preview (col-span-5, sticky on desktop) ── */}
+            <div className="lg:col-span-5 space-y-5 lg:sticky lg:top-24 lg:self-start">
               {/* Dropzone & Image Grid */}
               <div className="rounded-3xl border border-neutral-200/80 bg-white p-5 shadow-xs">
                 <div className="flex items-center justify-between mb-3">
@@ -605,7 +605,7 @@ function SellPageContent() {
                           key={c.value}
                           type="button"
                           onClick={() => setValue('category', c.value)}
-                          className={`flex items-center gap-1.5 cursor-pointer rounded-xl px-3.5 py-2 text-xs font-semibold transition active:scale-[0.98] ${
+                          className={`flex items-center gap-1.5 cursor-pointer rounded-xl px-3.5 h-11 sm:h-10 text-xs font-semibold transition active:scale-[0.98] ${
                             active
                               ? 'bg-neutral-900 text-white shadow-sm'
                               : 'border border-neutral-200 bg-white text-neutral-600 hover:border-neutral-300 hover:bg-neutral-50'
@@ -632,7 +632,7 @@ function SellPageContent() {
                           key={o.value}
                           type="button"
                           onClick={() => setValue('condition', o.value)}
-                          className={`flex flex-col cursor-pointer rounded-2xl border p-3 text-center transition active:scale-[0.98] ${
+                          className={`flex flex-col cursor-pointer rounded-2xl border min-h-[52px] p-3 text-center transition active:scale-[0.98] ${
                             active
                               ? 'border-neutral-900 bg-neutral-900 text-white shadow-sm ring-1 ring-neutral-900'
                               : 'border-neutral-200 bg-white text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50'

@@ -5,6 +5,7 @@ import { usePathname } from 'next/navigation';
 import { Home, Compass, Plus, MessageCircle, User } from 'lucide-react';
 import { clsx } from 'clsx';
 import { useAuthStore } from '@/store/useAuthStore';
+import { useIsMounted } from '@/hooks/useMounted';
 
 interface NavItem {
   icon: React.FC<{ className?: string }>;
@@ -17,13 +18,14 @@ interface NavItem {
 export default function MobileBottomNav() {
   const pathname = usePathname();
   const { isLoggedIn } = useAuthStore();
+  const isMounted = useIsMounted();
 
   const navItems: NavItem[] = [
     { icon: Home, label: 'Khám phá', href: '/' },
     { icon: Compass, label: 'Tìm kiếm', href: '/search' },
     { icon: Plus, label: 'Đăng tin', href: '/sell', isCenterCta: true },
     { icon: MessageCircle, label: 'Tin nhắn', href: '/chat', hasBadge: true },
-    { icon: User, label: 'Tài khoản', href: isLoggedIn ? '/user/orders' : '/auth/login' },
+    { icon: User, label: 'Tài khoản', href: isMounted && isLoggedIn ? '/user/orders' : '/auth/login' },
   ];
 
   return (
@@ -61,7 +63,7 @@ export default function MobileBottomNav() {
             href={href}
             aria-label={label}
             className={clsx(
-              'relative flex flex-col items-center justify-center w-14 py-1 transition-colors',
+              'relative flex flex-col items-center justify-center min-w-12 min-h-11 py-1 transition-colors',
               isActive
                 ? 'text-neutral-950 font-bold'
                 : 'text-neutral-400 hover:text-neutral-700 font-medium',

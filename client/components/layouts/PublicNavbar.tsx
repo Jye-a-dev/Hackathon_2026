@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect, Suspense } from 'react';
+import { useState, useRef, useCallback, Suspense, useEffect } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
@@ -34,6 +34,7 @@ import {
 import { clsx } from 'clsx';
 import { useAuthStore } from '@/store/useAuthStore';
 import { useCurrentUser, useSearchListings } from '@/hooks/useMarketplace';
+import { useIsMounted } from '@/hooks/useMounted';
 import { formatVND } from '@/utils/formatCurrency';
 import { performFullLogout } from '@/libs/logout';
 import type { ListingCategory } from '@/types/listing';
@@ -122,7 +123,7 @@ function OmniSearchBar({
   };
 
   return (
-    <div className={clsx('relative w-full max-w-xl', className)}>
+    <div className={clsx('relative w-full max-w-md', className)}>
       <form
         onSubmit={(e) => {
           e.preventDefault();
@@ -132,7 +133,7 @@ function OmniSearchBar({
       >
         <div
           className={clsx(
-            'group relative flex h-10 w-full items-center rounded-full border px-3.5 transition-all duration-200',
+            'group relative flex h-11 sm:h-10 w-full items-center rounded-full border px-3.5 transition-all duration-200',
             'border-neutral-200/90 bg-neutral-100/90 hover:border-neutral-300 hover:bg-neutral-100/80',
             'focus-within:border-emerald-500 focus-within:bg-white focus-within:ring-3 focus-within:ring-emerald-500/15 focus-within:shadow-xs',
           )}
@@ -272,13 +273,14 @@ function UserProfilePill() {
   const { isLoggedIn } = useAuthStore();
   const { data: user, isLoading } = useCurrentUser();
   const [open, setOpen] = useState(false);
+  const isMounted = useIsMounted();
   const queryClient = useQueryClient();
 
-  if (!isLoggedIn) {
+  if (!isMounted || !isLoggedIn) {
     return (
       <Link
         href="/auth/login"
-        className="flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-1.5 text-xs font-bold text-neutral-700 shadow-2xs transition hover:bg-neutral-50"
+        className="flex h-11 sm:h-9 items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3.5 py-1.5 text-xs font-bold text-neutral-700 shadow-2xs transition hover:bg-neutral-50"
       >
         <User className="h-3.5 w-3.5" />
         <span>Đăng nhập</span>
@@ -295,9 +297,12 @@ function UserProfilePill() {
     <div className="relative">
       <button
         onClick={() => setOpen((prev) => !prev)}
-        className="flex items-center gap-2 rounded-full border border-neutral-200 bg-white py-1 pl-1 pr-2.5 text-xs font-medium text-neutral-700 shadow-2xs transition hover:border-neutral-300 hover:bg-neutral-50 focus:outline-hidden"
+        className="flex h-11 sm:h-9 items-center gap-2 rounded-full border border-neutral-200 bg-white py-1 pl-1 pr-2.5 text-xs font-medium text-neutral-700 shadow-2xs transition hover:border-neutral-300 hover:bg-neutral-50 focus:outline-hidden"
       >
-        <span className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-900 text-xs font-bold text-white">
+        <span
+          suppressHydrationWarning
+          className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-900 text-xs font-bold text-white"
+        >
           {isLoading ? (
             '…'
           ) : avatar ? (
@@ -308,10 +313,10 @@ function UserProfilePill() {
         </span>
 
         <div className="hidden flex-col items-start sm:flex text-left">
-          <span className="max-w-20 truncate text-xs font-bold text-neutral-800 leading-tight">
+          <span suppressHydrationWarning className="max-w-20 truncate text-xs font-bold text-neutral-800 leading-tight">
             {isLoading ? '…' : name}
           </span>
-          <span className="flex items-center gap-0.5 text-[10px] text-amber-500 leading-tight font-semibold">
+          <span suppressHydrationWarning className="flex items-center gap-0.5 text-[10px] text-amber-500 leading-tight font-semibold">
             <Star className="h-2.5 w-2.5 fill-amber-400 text-amber-400" />
             {rating.toFixed(1)}
           </span>
@@ -461,13 +466,13 @@ function PublicNavbarContent({
   );
 
   return (
-    <header className="sticky top-0 z-50 w-full max-w-full bg-white/90 backdrop-blur-xl border-b border-neutral-200/80">
+    <header className="sticky top-0 z-50 w-full bg-white/90 backdrop-blur-xl border-b border-neutral-200/80">
       {/* ── Tier 1: Main Header (h-16) ── */}
-      <div className="h-16 w-full max-w-full px-4 sm:px-8 lg:px-12 flex items-center justify-between gap-4">
+      <div className="h-16 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-3 sm:gap-4">
         {/* Left: Brand logo with ShieldCheck, Solana 48h Escrow animated pill, City selector */}
         {!mobileSearch && (
-          <div className="flex shrink-0 items-center gap-2.5 sm:gap-3">
-            <Link href="/" className="flex items-center gap-2.5">
+          <div className="flex shrink-0 items-center gap-2 sm:gap-3">
+            <Link href="/" className="flex items-center gap-2 sm:gap-2.5 min-h-11">
               <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-neutral-900 text-emerald-400 shadow-xs">
                 <ShieldCheck className="h-5 w-5 stroke-[2.5]" />
               </div>
@@ -477,7 +482,7 @@ function PublicNavbarContent({
             </Link>
 
             {/* Solana 48h Escrow animated pill */}
-            <div className="hidden items-center gap-1.5 rounded-full border border-emerald-200/80 bg-emerald-50/90 px-2.5 py-1 text-[10px] font-bold text-emerald-800 sm:flex">
+            <div className="hidden items-center gap-1.5 rounded-full border border-emerald-200/80 bg-emerald-50/90 px-2.5 py-1 text-[10px] font-bold text-emerald-800 lg:flex">
               <span className="relative flex h-2 w-2">
                 <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
                 <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
@@ -488,7 +493,7 @@ function PublicNavbarContent({
             {/* City selector dropdown */}
             <button
               type="button"
-              className="hidden items-center gap-1 border-l border-neutral-200 pl-2.5 text-xs text-neutral-500 transition hover:text-neutral-800 lg:flex"
+              className="hidden items-center gap-1 border-l border-neutral-200 pl-2.5 text-xs text-neutral-500 transition hover:text-neutral-800 xl:flex h-9"
             >
               <MapPin className="h-3.5 w-3.5 text-neutral-400" />
               <span className="font-medium">TP. Hồ Chí Minh</span>
@@ -497,9 +502,9 @@ function PublicNavbarContent({
           </div>
         )}
 
-        {/* Center: Omni-Search Bar */}
+        {/* Center: Omni-Search Bar (max-w-md w-full) */}
         {!mobileSearch ? (
-          <div className="hidden flex-1 justify-center md:flex px-4 max-w-xl w-full mx-auto">
+          <div className="hidden flex-1 justify-center md:flex max-w-md w-full mx-4">
             <OmniSearchBar className="w-full" />
           </div>
         ) : (
@@ -507,7 +512,8 @@ function PublicNavbarContent({
             <button
               type="button"
               onClick={() => setMobileSearch(false)}
-              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-neutral-600 hover:bg-neutral-100"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl text-neutral-600 hover:bg-neutral-100"
+              aria-label="Đóng tìm kiếm"
             >
               <ArrowLeft className="h-5 w-5" />
             </button>
@@ -517,8 +523,8 @@ function PublicNavbarContent({
 
         {/* Right: Nav Links, CTA, Wishlist, Bell, Profile */}
         {!mobileSearch && (
-          <div className="ml-auto flex shrink-0 items-center gap-2 sm:gap-2.5">
-            <nav className="hidden items-center gap-1 lg:flex">
+          <div className="ml-auto flex shrink-0 items-center gap-1.5 sm:gap-2.5">
+            <nav className="hidden items-center gap-1 xl:flex">
               <Link
                 href="/"
                 className={clsx(
@@ -527,6 +533,16 @@ function PublicNavbarContent({
                 )}
               >
                 Khám phá
+              </Link>
+
+              <Link
+                href="/listings"
+                className={clsx(
+                  'px-3 py-1.5 text-xs font-semibold transition-colors',
+                  pathname.startsWith('/listings') ? 'text-neutral-950 font-bold' : 'text-neutral-500 hover:text-neutral-900',
+                )}
+              >
+                Sản phẩm
               </Link>
 
               <Link
@@ -566,13 +582,13 @@ function PublicNavbarContent({
               </Link>
             </nav>
 
-            <span className="hidden h-4 w-px bg-neutral-200 lg:block" />
+            <span className="hidden h-4 w-px bg-neutral-200 xl:block" />
 
             {/* Wishlist Icon */}
             <Link
               href="/user/orders"
               aria-label="Yêu thích"
-              className="hidden sm:flex h-8 w-8 items-center justify-center rounded-full text-neutral-600 transition hover:bg-neutral-100"
+              className="hidden sm:flex h-9 w-9 items-center justify-center rounded-full text-neutral-600 transition hover:bg-neutral-100"
             >
               <Heart className="h-4 w-4" />
             </Link>
@@ -581,16 +597,16 @@ function PublicNavbarContent({
             <button
               type="button"
               aria-label="Thông báo"
-              className="relative flex h-8 w-8 items-center justify-center rounded-full text-neutral-600 transition hover:bg-neutral-100"
+              className="relative flex h-11 w-11 sm:h-9 sm:w-9 items-center justify-center rounded-full text-neutral-600 transition hover:bg-neutral-100"
             >
               <Bell className="h-4 w-4" />
-              <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-rose-500 ring-1.5 ring-white" />
+              <span className="absolute right-2 top-2 sm:right-1.5 sm:top-1.5 h-2 w-2 sm:h-1.5 sm:w-1.5 rounded-full bg-rose-500 ring-1.5 ring-white" />
             </button>
 
             {/* + Đăng tin CTA Pill Button */}
             <Link
               href="/sell"
-              className="hidden sm:flex items-center gap-1 rounded-full bg-neutral-900 hover:bg-neutral-800 text-white px-4 py-2 text-xs font-semibold active:scale-[0.98] transition-transform duration-100 shadow-2xs"
+              className="hidden sm:flex items-center gap-1 rounded-full bg-neutral-900 hover:bg-neutral-800 text-white px-4 py-2 text-xs font-semibold active:scale-[0.98] transition-transform duration-100 shadow-2xs h-9"
             >
               <Plus className="h-3.5 w-3.5 stroke-[2.5]" />
               <span>+ Đăng tin</span>
@@ -604,7 +620,7 @@ function PublicNavbarContent({
               type="button"
               onClick={() => setMobileSearch(true)}
               aria-label="Tìm kiếm"
-              className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-600 transition hover:bg-neutral-100 md:hidden"
+              className="flex h-11 w-11 sm:h-9 sm:w-9 items-center justify-center rounded-full text-neutral-600 transition hover:bg-neutral-100 md:hidden"
             >
               <Search className="h-4 w-4" />
             </button>
@@ -614,7 +630,7 @@ function PublicNavbarContent({
               type="button"
               onClick={() => setMobileMenu((p) => !p)}
               aria-label="Menu"
-              className="flex h-8 w-8 items-center justify-center rounded-full text-neutral-600 transition hover:bg-neutral-100 lg:hidden"
+              className="flex h-11 w-11 sm:h-9 sm:w-9 items-center justify-center rounded-full text-neutral-600 transition hover:bg-neutral-100 xl:hidden"
             >
               <Menu className="h-4 w-4" />
             </button>
@@ -624,11 +640,11 @@ function PublicNavbarContent({
 
       {/* Mobile Menu Drawer */}
       {mobileMenu && !mobileSearch && (
-        <div className="border-t border-neutral-100 bg-white px-4 py-3 shadow-lg lg:hidden space-y-1">
+        <div className="border-t border-neutral-100 bg-white px-4 py-3 shadow-lg xl:hidden space-y-1 animate-in fade-in slide-in-from-top-1 duration-150">
           <Link
             href="/"
             onClick={() => setMobileMenu(false)}
-            className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-neutral-800 hover:bg-neutral-50"
+            className="flex items-center gap-2.5 rounded-xl px-3 h-11 text-xs font-semibold text-neutral-800 hover:bg-neutral-50"
           >
             <Sparkles className="h-4 w-4 text-neutral-500" />
             <span>Khám phá</span>
@@ -636,9 +652,9 @@ function PublicNavbarContent({
           <Link
             href="/chat"
             onClick={() => setMobileMenu(false)}
-            className="flex items-center justify-between rounded-xl px-3 py-2 text-xs font-semibold text-neutral-800 hover:bg-neutral-50"
+            className="flex items-center justify-between rounded-xl px-3 h-11 text-xs font-semibold text-neutral-800 hover:bg-neutral-50"
           >
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2.5">
               <MessageCircle className="h-4 w-4 text-neutral-500" />
               <span>Tin nhắn</span>
             </div>
@@ -647,7 +663,7 @@ function PublicNavbarContent({
           <Link
             href="/user/orders"
             onClick={() => setMobileMenu(false)}
-            className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-neutral-800 hover:bg-neutral-50"
+            className="flex items-center gap-2.5 rounded-xl px-3 h-11 text-xs font-semibold text-neutral-800 hover:bg-neutral-50"
           >
             <ShoppingBag className="h-4 w-4 text-neutral-500" />
             <span>Đơn hàng ký quỹ</span>
@@ -655,7 +671,7 @@ function PublicNavbarContent({
           <Link
             href="/admin/escrow"
             onClick={() => setMobileMenu(false)}
-            className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-neutral-800 hover:bg-neutral-50"
+            className="flex items-center gap-2.5 rounded-xl px-3 h-11 text-xs font-semibold text-neutral-800 hover:bg-neutral-50"
           >
             <Gavel className="h-4 w-4 text-neutral-500" />
             <span>Cổng Trọng tài & Admin</span>
@@ -663,7 +679,7 @@ function PublicNavbarContent({
           <Link
             href="/sell"
             onClick={() => setMobileMenu(false)}
-            className="flex items-center gap-2 rounded-xl bg-neutral-900 text-white px-3 py-2 text-xs font-bold"
+            className="flex items-center gap-2.5 rounded-xl bg-neutral-900 text-white px-3.5 h-11 text-xs font-bold"
           >
             <Plus className="h-4 w-4" />
             <span>Đăng tin bán hàng</span>
@@ -671,49 +687,64 @@ function PublicNavbarContent({
         </div>
       )}
 
-      {/* ── Tier 2: Category & Filter Bar (h-12) ── */}
+      {/* ── Tier 2: Category & Filter Bar ── */}
       {shouldShowCategoryBar && (
-        <div className="h-12 w-full max-w-full px-4 sm:px-8 lg:px-12 border-t border-neutral-100 bg-white/95 flex items-center justify-between">
-          {/* Left: Horizontal scrollable category pills */}
-          <div className="flex flex-1 items-center gap-1.5 overflow-x-auto py-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-            {CATEGORIES.map(({ label, value, Icon }) => {
-              const active = activeCat === value;
-              return (
+        <div className="border-t border-neutral-100 bg-white/95 w-full">
+          <div className="w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex items-center justify-between gap-3 py-2">
+            {/* Left: Horizontal scrollable category pills */}
+            <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-1 w-full">
+              {CATEGORIES.map(({ label, value, Icon }) => {
+                const active = activeCat === value;
+                return (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => handleCatSelect(value)}
+                    className={clsx(
+                      'flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full px-3.5 h-10 sm:h-8 text-xs font-semibold transition-all duration-150',
+                      active
+                        ? 'bg-neutral-900 text-white shadow-2xs'
+                        : 'bg-transparent text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900',
+                    )}
+                  >
+                    <Icon className="h-3.5 w-3.5 shrink-0" />
+                    <span>{label}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Right: Distance segmented control (Desktop/Tablet) */}
+            <div className="ml-2 hidden shrink-0 items-center rounded-lg border border-neutral-200 bg-neutral-50 p-0.5 sm:flex">
+              {RADII.map(({ label, value }) => (
                 <button
                   key={value}
                   type="button"
-                  onClick={() => handleCatSelect(value)}
+                  onClick={() => handleRadiusSelect(value)}
                   className={clsx(
-                    'flex shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full px-3 py-1.5 text-xs font-semibold transition-all duration-150',
-                    active
-                      ? 'bg-neutral-900 text-white shadow-2xs'
-                      : 'bg-transparent text-neutral-600 hover:bg-neutral-100 hover:text-neutral-900',
+                    'h-7 rounded-md px-3 text-[11px] font-bold transition-all',
+                    activeRadius === value
+                      ? 'bg-white text-neutral-900 shadow-2xs'
+                      : 'text-neutral-500 hover:text-neutral-800',
                   )}
                 >
-                  <Icon className="h-3.5 w-3.5 shrink-0" />
-                  <span>{label}</span>
+                  {label}
                 </button>
-              );
-            })}
-          </div>
+              ))}
+            </div>
 
-          {/* Right: Distance segmented control (Desktop/Tablet only) */}
-          <div className="ml-3 hidden shrink-0 items-center rounded-lg border border-neutral-200 bg-neutral-50 p-0.5 sm:flex">
-            {RADII.map(({ label, value }) => (
-              <button
-                key={value}
-                type="button"
-                onClick={() => handleRadiusSelect(value)}
-                className={clsx(
-                  'h-7 rounded-md px-3 text-[11px] font-bold transition-all',
-                  activeRadius === value
-                    ? 'bg-white text-neutral-900 shadow-2xs'
-                    : 'text-neutral-500 hover:text-neutral-800',
-                )}
-              >
-                {label}
-              </button>
-            ))}
+            {/* Mobile Radius Filter Pill */}
+            <button
+              type="button"
+              onClick={() => {
+                const nextVal = activeRadius === 0 ? 5 : activeRadius === 5 ? 10 : 0;
+                handleRadiusSelect(nextVal);
+              }}
+              className="sm:hidden shrink-0 flex items-center gap-1 px-3 h-10 rounded-full border border-neutral-200 bg-neutral-50 text-[11px] font-bold text-neutral-700 active:scale-[0.98]"
+            >
+              <MapPin className="h-3 w-3 text-emerald-600" />
+              <span>{RADII.find((r) => r.value === activeRadius)?.label || 'Mọi nơi'}</span>
+            </button>
           </div>
         </div>
       )}
@@ -725,7 +756,7 @@ export default function PublicNavbar(props: PublicNavbarProps) {
   return (
     <Suspense
       fallback={
-        <header className="sticky top-0 z-50 w-full max-w-full bg-white/90 backdrop-blur-xl border-b border-neutral-200/80 h-16" />
+        <header className="sticky top-0 z-50 w-full bg-white/90 backdrop-blur-xl border-b border-neutral-200/80 h-16" />
       }
     >
       <PublicNavbarContent {...props} />
